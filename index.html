@@ -9,140 +9,140 @@
     <link href="https://cdn.jsdelivr.net/npm/suggestions-jquery@21.12.0/dist/css/suggestions.min.css" rel="stylesheet" />
     
     <style>
-        :root { --bg: #000; --text: #fff; --accent: #fff; --muted: #888; }
+        :root { --bg: #000; --text: #fff; --card: #0a0a0a; --border: #222; }
         body {
             margin: 0; padding: 0; min-height: 100vh;
             background: var(--bg); color: var(--text);
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            overflow-x: hidden; text-transform: lowercase;
+            text-transform: lowercase; overflow-x: hidden;
             display: flex; flex-direction: column; align-items: center;
         }
         
-        /* Контейнер для узкого вида */
-        .app-container { width: 100%; max-width: 450px; min-height: 100vh; position: relative; }
+        .app { width: 100%; max-width: 450px; position: relative; min-height: 100vh; }
 
+        /* Header */
         header { 
-            padding: 20px; text-align: center; 
-            position: sticky; top: 0; background: rgba(0,0,0,0.9); 
-            backdrop-filter: blur(10px); z-index: 100; border-bottom: 1px solid #1a1a1a;
+            padding: 20px; text-align: center; font-weight: 900; letter-spacing: 3px; text-transform: uppercase;
+            position: sticky; top: 0; background: rgba(0,0,0,0.9); backdrop-filter: blur(10px); z-index: 99;
+            border-bottom: 1px solid var(--border);
         }
-        .logo { font-size: 16px; letter-spacing: 4px; font-weight: 900; text-transform: uppercase; }
 
-        /* Карточки */
-        .catalog { padding: 15px; display: flex; flex-direction: column; gap: 20px; }
+        /* Catalog */
+        .catalog { padding: 15px; display: grid; gap: 20px; }
         .product-card { 
-            background: #0a0a0a; border-radius: 20px; overflow: hidden; border: 1px solid #222; 
-            transition: transform 0.2s; cursor: pointer;
+            background: var(--card); border: 1px solid var(--border); border-radius: 20px; overflow: hidden;
+            position: relative; cursor: pointer; transition: 0.2s;
         }
         .product-card:active { transform: scale(0.98); }
-        .product-card img { width: 100%; display: block; object-fit: cover; }
-        .product-details { padding: 15px; }
+        .product-card img { width: 100%; display: block; object-fit: cover; aspect-ratio: 1/1; }
+        .card-info { padding: 15px; }
+        .card-title { font-weight: 700; font-size: 18px; margin-bottom: 5px; color: #fff; }
+        .card-price { color: #888; }
 
-        /* Страницы */
-        .page { display: none; padding-bottom: 50px; animation: fadeIn 0.3s; }
+        /* Product Page */
+        .page { display: none; padding-bottom: 80px; animation: fadeIn 0.2s; }
         .page.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        .back-btn { 
-            padding: 15px 20px; color: var(--muted); cursor: pointer; 
-            font-size: 14px; font-weight: 600; display: inline-block;
-        }
+        .back-btn { padding: 15px 20px; color: #666; font-weight: 600; cursor: pointer; }
+        
+        .swiper { width: 100%; height: 450px; background: #050505; }
+        .swiper-slide img { width: 100%; height: 100%; object-fit: contain; }
 
-        /* Инфо о товаре */
-        .swiper { width: 100%; height: 400px; background: #050505; }
-        .swiper-slide { display: flex; justify-content: center; align-items: center; }
-        .swiper-slide img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .details { padding: 20px; }
+        .main-title { font-size: 26px; font-weight: 800; margin-bottom: 10px; }
+        .main-price { font-size: 22px; color: #ccc; margin-bottom: 25px; }
+        .desc { background: #111; padding: 15px; border-radius: 15px; color: #aaa; line-height: 1.5; margin-bottom: 25px; white-space: pre-line; border: 1px solid #222; }
 
-        .info-block { padding: 20px; }
-        .info-desc { 
-            font-size: 14px; line-height: 1.5; color: #ccc; margin-bottom: 25px; 
-            white-space: pre-line; background: #111; padding: 15px; border-radius: 12px;
-        }
-        .price-text { font-size: 22px; margin-bottom: 15px; font-weight: 700; color: #fff; }
-
-        /* Размеры */
-        .size-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 30px; }
-        .size-item { 
+        /* Sizes */
+        .sizes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 30px; }
+        .size-opt { 
             padding: 15px; border: 1px solid #333; border-radius: 12px; text-align: center; 
-            font-weight: 600; cursor: pointer; transition: 0.2s; color: #888;
+            font-weight: 600; cursor: pointer; color: #666;
         }
-        .size-item.selected { background: #fff; color: #000; border-color: #fff; }
+        .size-opt.selected { background: #fff; color: #000; border-color: #fff; }
 
-        /* Формы */
+        /* Form */
         input { 
-            width: 100%; background: #111; border: 1px solid #333; padding: 16px; 
-            border-radius: 12px; color: #fff; margin-bottom: 10px; box-sizing: border-box; 
-            font-size: 16px; outline: none;
+            width: 100%; padding: 16px; margin-bottom: 12px; border-radius: 12px; 
+            background: #111; border: 1px solid #333; color: #fff; font-size: 16px; box-sizing: border-box; outline: none;
         }
-        input:focus { border-color: #666; }
-
-        .main-button { 
-            background: #fff; color: #000; border: none; padding: 18px; 
-            border-radius: 12px; width: 100%; font-size: 16px; font-weight: 800; 
-            text-transform: uppercase; cursor: pointer; margin-top: 10px;
+        input:focus { border-color: #fff; }
+        
+        .btn-buy { 
+            width: 100%; padding: 18px; background: #fff; color: #000; border: none; 
+            border-radius: 14px; font-weight: 800; font-size: 16px; text-transform: uppercase; cursor: pointer; 
         }
 
-        /* Стиль подсказок DaData */
-        .suggestions-suggestions { background: #1a1a1a !important; color: #fff !important; border: 1px solid #333 !important; }
-        .suggestions-suggestion:hover { background: #333 !important; }
+        /* Dadata Custom */
+        .suggestions-suggestions { background: #111 !important; border: 1px solid #333 !important; color: #fff !important; }
+        .suggestions-suggestion:hover { background: #222 !important; }
     </style>
 </head>
 <body>
-    <div class="app-container">
-        <header><div class="logo">MNGNV_QUE</div></header>
+    <div class="app">
+        <header>MNGNV_QUE</header>
 
         <div id="home" class="page active">
             <div class="catalog">
                 <div class="product-card" onclick="openProduct('zip')">
-                    <img src="https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/photo_2025-01-30_16-43-34.jpg" alt="hoodie">
-                    <div class="product-details">
-                        <div style="font-weight:700; font-size: 18px;">zip-hoodie "snich"</div>
-                        <div style="color:var(--muted); margin-top: 5px;">8000 rub</div>
+                    <img src="https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/photo_2025-01-30_16-43-34.jpg" alt="Hoodie">
+                    <div class="card-info">
+                        <div class="card-title">zip-hoodie "snich"</div>
+                        <div class="card-price">8000 rub</div>
                     </div>
                 </div>
                 
-                <div class="product-card" style="opacity: 0.5; cursor: default;">
-                    <div style="height: 200px; display:flex; align-items:center; justify-content:center; background:#111; color:#555; font-weight:900;">
-                        COMING SOON
+                <div class="product-card" style="opacity: 0.5;">
+                    <div style="height: 300px; display:flex; align-items:center; justify-content:center; background:#111; font-weight:900; color:#444;">COMING SOON</div>
+                    <div class="card-info">
+                        <div class="card-title">t-shirt</div>
+                        <div class="card-price">???? rub</div>
                     </div>
                 </div>
             </div>
         </div>
 
         <div id="product" class="page">
-            <div class="back-btn" onclick="showPage('home')">← назад в каталог</div>
+            <div class="back-btn" onclick="showPage('home')">← назад</div>
             
             <div class="swiper mySwiper">
                 <div class="swiper-wrapper" id="slides"></div>
                 <div class="swiper-pagination"></div>
             </div>
 
-            <div class="info-block">
-                <div style="font-size: 24px; font-weight: 800; margin-bottom: 5px;" id="p-title"></div>
-                <div class="price-text" id="p-price"></div>
-                
-                <div class="size-grid">
-                    <div class="size-item" onclick="selectSize(this)">baby-size (m-l)</div>
-                    <div class="size-item" onclick="selectSize(this)">big-size (xl+)</div>
+            <div class="details">
+                <div class="main-title">zip-hoodie "snich"</div>
+                <div class="main-price">8000 rub</div>
+
+                <div class="desc">new drop
+oversize fit
+ткань: футер 3-х нитка / кружево / сетка
+машинная вышивка
+
+baby size: рост до 175
+big size: рост 175+</div>
+
+                <div class="sizes">
+                    <div class="size-opt" onclick="selectSize(this)">baby-size</div>
+                    <div class="size-opt" onclick="selectSize(this)">big-size</div>
                 </div>
 
-                <div class="info-desc" id="p-desc"></div>
-                <button class="main-button" onclick="goToCheckout()">КУПИТЬ</button>
+                <button class="btn-buy" onclick="toCheckout()">Купить</button>
             </div>
         </div>
 
         <div id="checkout" class="page">
-            <div class="back-btn" onclick="showPage('product')">← назад к товару</div>
-            <div class="info-block">
-                <h2 style="margin-bottom: 20px;">доставка</h2>
-                <input type="text" id="name" placeholder="фио">
-                <input type="text" id="address" placeholder="город и адрес (начни вводить)">
-                <input type="text" id="postal" placeholder="индекс" readonly>
-                <input type="tel" id="phone" placeholder="телефон">
-                <input type="email" id="email" placeholder="email">
-                <input type="text" id="tg_user" placeholder="твой @username для связи">
+            <div class="back-btn" onclick="showPage('product')">← назад</div>
+            <div class="details">
+                <h2 style="margin-bottom: 20px;">Доставка</h2>
+                <input type="text" id="name" placeholder="ФИО">
+                <input type="text" id="address" placeholder="Город и адрес (начни вводить)">
+                <input type="tel" id="phone" placeholder="Телефон">
+                <input type="text" id="tg" placeholder="@username (для связи)">
+                <input type="text" id="zip" placeholder="Индекс" readonly>
                 
-                <button class="main-button" onclick="confirmOrder()">ПОДТВЕРДИТЬ ЗАКАЗ</button>
+                <button class="btn-buy" onclick="sendOrder()" style="margin-top: 20px;">Оформить за 8000₽</button>
             </div>
         </div>
     </div>
@@ -152,97 +152,70 @@
     <script src="https://cdn.jsdelivr.net/npm/suggestions-jquery@21.12.0/dist/js/jquery.suggestions.min.js"></script>
 
     <script>
-        let tg = window.Telegram.WebApp;
+        const tg = window.Telegram.WebApp;
         tg.expand();
-        
+
+        // Ссылка на картинку для слайдера
+        const IMG_URL = "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/photo_2025-01-30_16-43-34.jpg";
+
         let selectedSize = null;
-        let currentItem = null;
 
-        // Данные о товарах (я вставил твою ссылку на фото)
-        const data = {
-            zip: {
-                title: 'zip-hoodie "snich"',
-                price: '8000 rub',
-                // Массив фоток (пока одинаковые, потом заменишь ссылки)
-                imgs: [
-                    'https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/photo_2025-01-30_16-43-34.jpg',
-                    'https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/photo_2025-01-30_16-43-34.jpg'
-                ],
-                desc: 'new drop\noversize fit\nткань: футер 3-х нитка / кружево / кулирная гладь / сетка\nмашинная вышивка\n\nbaby size: длина 65см / ширина 65\nbig size: длина 70см / ширина 70'
-            }
-        };
-
-        // Подключаем подсказки адреса (Твой API ключ)
+        // Настройка подсказок адреса (DaData)
         $("#address").suggestions({
             token: "1ed0eebc35156fe4fe197c5dd676354f40bfd073",
             type: "ADDRESS",
-            onSelect: function(s) { 
-                if(s.data.postal_code) $("#postal").val(s.data.postal_code); 
+            onSelect: function(suggestion) {
+                if(suggestion.data.postal_code) $("#zip").val(suggestion.data.postal_code);
             }
         });
 
-        function showPage(id) { 
-            $(".page").removeClass("active"); 
-            $("#" + id).addClass("active"); 
-            window.scrollTo(0,0); 
+        function showPage(id) {
+            $(".page").removeClass("active");
+            $("#" + id).addClass("active");
+            window.scrollTo(0,0);
         }
 
-        function openProduct(id) {
-            currentItem = data[id];
-            $("#p-title").text(currentItem.title);
-            $("#p-price").text(currentItem.price);
-            $("#p-desc").text(currentItem.desc);
-            
-            // Генерация слайдов
-            $("#slides").html(currentItem.imgs.map(img => 
-                `<div class="swiper-slide"><img src="${img}"></div>`
-            ).join(''));
-            
+        function openProduct() {
+            // Создаем слайды (дублируем фото для красоты)
+            $("#slides").html(`
+                <div class="swiper-slide"><img src="${IMG_URL}"></div>
+                <div class="swiper-slide"><img src="${IMG_URL}"></div>
+            `);
             new Swiper(".mySwiper", { pagination: { el: ".swiper-pagination" } });
-            
-            selectedSize = null;
-            $(".size-item").removeClass("selected");
             showPage('product');
         }
 
-        function selectSize(el) { 
-            $(".size-item").removeClass("selected"); 
-            $(el).addClass("selected"); 
-            // Берем только текст размера (без пояснений m-l)
-            selectedSize = el.innerText.split(' ')[0]; 
+        function selectSize(el) {
+            $(".size-opt").removeClass("selected");
+            $(el).addClass("selected");
+            selectedSize = el.innerText;
         }
 
-        function goToCheckout() {
-            if(!selectedSize) {
-                tg.showAlert("Пожалуйста, выбери размер!");
-                return;
-            }
+        function toCheckout() {
+            if(!selectedSize) return tg.showAlert("Выбери размер!");
             showPage('checkout');
         }
 
-        function confirmOrder() {
-            let name = $("#name").val();
-            let phone = $("#phone").val();
-            let address = $("#address").val();
+        function sendOrder() {
+            const name = $("#name").val();
+            const address = $("#address").val();
+            const phone = $("#phone").val();
 
-            if(!name || !phone || !address) {
-                tg.showAlert("Заполни ФИО, адрес и телефон!");
-                return;
-            }
+            if(!name || !address || !phone) return tg.showAlert("Заполни все поля!");
 
-            const order = {
-                item: currentItem.title,
+            const data = {
+                type: "order",
+                item: "Zip-Hoodie Snich",
                 size: selectedSize,
                 price: 8000,
-                customer_name: name,
+                customer: name,
                 address: address,
-                zip: $("#postal").val(),
                 phone: phone,
-                email: $("#email").val(),
-                tg_contact: $("#tg_user").val()
+                tg: $("#tg").val() || "Не указан",
+                zip: $("#zip").val()
             };
-            
-            tg.sendData(JSON.stringify(order));
+
+            tg.sendData(JSON.stringify(data));
         }
     </script>
 </body>

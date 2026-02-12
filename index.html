@@ -30,7 +30,6 @@
         .card-title { font-weight: 700; font-size: 18px; }
         .card-price { color: #888; margin-top: 5px; }
 
-        /* Страницы */
         .page { display: none; animation: fadeIn 0.3s ease; }
         .page.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -59,6 +58,7 @@
             width: 100%; padding: 16px; margin-bottom: 10px; border-radius: 12px; 
             background: #111; border: 1px solid #333; color: #fff; box-sizing: border-box; outline: none;
         }
+        input:focus { border-color: #666; }
         .btn-main { 
             width: 100%; padding: 18px; background: #fff; color: #000; 
             border: none; border-radius: 15px; font-weight: 800; font-size: 16px; 
@@ -89,16 +89,14 @@
     <div id="product-page" class="page">
         <div class="back-btn" onclick="showPage('catalog-page')">← назад</div>
         <div class="swiper mySwiper">
-            <div class="swiper-wrapper" id="gallery">
-                </div>
+            <div class="swiper-wrapper" id="gallery"></div>
             <div class="swiper-pagination"></div>
         </div>
         <div class="details">
             <div class="main-title">zip-hoodie "snich"</div>
             <div class="main-price">8000 rub</div>
             <div class="description">
-                new drop
-                oversize fit
+                new drop / oversize fit
                 ткань: футер 3-х нитка / кружево / сетка
                 машинная вышивка
 
@@ -117,11 +115,15 @@
         <div class="back-btn" onclick="showPage('product-page')">← назад к товару</div>
         <div class="details">
             <h2 style="margin-bottom: 20px;">доставка</h2>
-            <input type="text" id="fio" placeholder="фио">
+            <input type="text" id="fio" placeholder="фио полностью">
             <input type="text" id="city" placeholder="город">
             <input type="text" id="address" placeholder="адрес пвз (сдэк/почта)">
+            <input type="text" id="post_index" placeholder="почтовый индекс">
             <input type="text" id="phone" placeholder="номер телефона">
-            <button class="btn-main" onclick="sendOrder()">оформить заказ</button>
+            <input type="text" id="email" placeholder="email">
+            <input type="text" id="tg_contact" placeholder="@username в telegram">
+            
+            <button class="btn-main" onclick="sendOrder()">оформить заказ на 8000</button>
         </div>
     </div>
 </div>
@@ -133,7 +135,6 @@
     tg.expand();
 
     let selectedSize = "";
-    // Твои картинки из репозитория
     const images = [
         "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode.jpg",
         "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode1.jpg",
@@ -153,10 +154,7 @@
             html += `<div class="swiper-slide"><img src="${img}"></div>`;
         });
         $('#gallery').html(html);
-        
-        new Swiper(".mySwiper", {
-            pagination: { el: ".swiper-pagination", clickable: true }
-        });
+        new Swiper(".mySwiper", { pagination: { el: ".swiper-pagination", clickable: true } });
         showPage('product-page');
     }
 
@@ -170,18 +168,25 @@
         const fio = $('#fio').val();
         const city = $('#city').val();
         const addr = $('#address').val();
+        const index = $('#post_index').val();
         const phone = $('#phone').val();
+        const email = $('#email').val();
+        const tg_c = $('#tg_contact').val();
 
         if (!selectedSize) return alert("выбери размер!");
-        if (!fio || !city || !addr || !phone) return alert("заполни все поля доставки!");
+        if (!fio || !city || !addr || !index || !phone || !tg_c) return alert("заполни все поля!");
 
         const orderData = {
             item: 'zip-hoodie "snich"',
             price: 8000,
             size: selectedSize,
             customer: fio,
-            address: city + ", " + addr,
-            phone: phone
+            city: city,
+            address: addr,
+            index: index,
+            phone: phone,
+            email: email,
+            tg_user: tg_c
         };
 
         tg.sendData(JSON.stringify(orderData));

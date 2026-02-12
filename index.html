@@ -6,6 +6,7 @@
     <title>mngnv_que</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    <link href="https://cdn.jsdelivr.net/npm/suggestions-jquery@21.12.0/dist/css/suggestions.min.css" rel="stylesheet" />
     <style>
         :root { --bg: #000; --text: #fff; --card: #0a0a0a; --border: #222; }
         body {
@@ -44,7 +45,7 @@
         .description { 
             font-size: 14px; color: #777; line-height: 1.6; 
             background: #0f0f0f; padding: 15px; border-radius: 15px; margin-bottom: 20px;
-            white-space: pre-line;
+            white-space: pre-line; text-transform: none;
         }
 
         .sizes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 25px; }
@@ -58,12 +59,13 @@
             width: 100%; padding: 16px; margin-bottom: 10px; border-radius: 12px; 
             background: #111; border: 1px solid #333; color: #fff; box-sizing: border-box; outline: none;
         }
-        input:focus { border-color: #666; }
         .btn-main { 
             width: 100%; padding: 18px; background: #fff; color: #000; 
             border: none; border-radius: 15px; font-weight: 800; font-size: 16px; 
             text-transform: uppercase; cursor: pointer; margin-top: 10px;
         }
+        /* DaData styling */
+        .suggestions-wrapper { color: #000; }
     </style>
 </head>
 <body>
@@ -81,7 +83,7 @@
                 </div>
             </div>
             <div class="product-card" style="opacity: 0.3;">
-                <div style="height:200px; display:flex; align-items:center; justify-content:center; background:#111;">coming soon</div>
+                <div style="height:300px; display:flex; align-items:center; justify-content:center; background:#111;">coming soon</div>
             </div>
         </div>
     </div>
@@ -95,14 +97,13 @@
         <div class="details">
             <div class="main-title">zip-hoodie "snich"</div>
             <div class="main-price">8000 rub</div>
-            <div class="description">
-                new drop / oversize fit
-                ткань: футер 3-х нитка / кружево / сетка
-                машинная вышивка
+            <div class="description">new drop
+оверсайз крой
+ткань:футер 3-х нитка /кружево / кулирная гладь / сетка (кружево и кулирная гладь на заклепках, по желанию их можно снять)
+машинная вышивка и нашивки тканью
 
-                baby size: рост до 175
-                big size: рост 175+
-            </div>
+baby size (m-l) длина 65см спереди 75см сзади / ширина 65
+big size (xl+) длина 70см спереди 80см сзади / ширина 70</div>
             <div class="sizes">
                 <div class="size-btn" onclick="selectSize(this)">baby-size</div>
                 <div class="size-btn" onclick="selectSize(this)">big-size</div>
@@ -115,10 +116,9 @@
         <div class="back-btn" onclick="showPage('product-page')">← назад к товару</div>
         <div class="details">
             <h2 style="margin-bottom: 20px;">доставка</h2>
-            <input type="text" id="fio" placeholder="фио полностью">
-            <input type="text" id="city" placeholder="город">
-            <input type="text" id="address" placeholder="адрес пвз (сдэк/почта)">
-            <input type="text" id="post_index" placeholder="почтовый индекс">
+            <input type="text" id="fio" placeholder="ФИО">
+            <input type="text" id="address" placeholder="город, адрес пвз (сдэк/почта)">
+            <input type="text" id="post_index" placeholder="почтовый индекс" readonly style="background: #0a0a0a; color: #555;">
             <input type="text" id="phone" placeholder="номер телефона">
             <input type="text" id="email" placeholder="email">
             <input type="text" id="tg_contact" placeholder="@username в telegram">
@@ -130,9 +130,21 @@
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/suggestions-jquery@21.12.0/dist/js/jquery.suggestions.min.js"></script>
 <script>
     const tg = window.Telegram.WebApp;
     tg.expand();
+
+    // Инициализация DaData (вставь свой токен ниже)
+    $("#address").suggestions({
+        token: "ТВОЙ_ТОКЕН_DADATA", // ПОЛУЧИ БЕСПЛАТНО НА DADATA.RU
+        type: "ADDRESS",
+        onSelect: function(suggestion) {
+            if(suggestion.data.postal_code) {
+                $('#post_index').val(suggestion.data.postal_code);
+            }
+        }
+    });
 
     let selectedSize = "";
     const images = [
@@ -150,9 +162,7 @@
 
     function openProduct() {
         let html = "";
-        images.forEach(img => {
-            html += `<div class="swiper-slide"><img src="${img}"></div>`;
-        });
+        images.forEach(img => { html += `<div class="swiper-slide"><img src="${img}"></div>`; });
         $('#gallery').html(html);
         new Swiper(".mySwiper", { pagination: { el: ".swiper-pagination", clickable: true } });
         showPage('product-page');
@@ -166,7 +176,6 @@
 
     function sendOrder() {
         const fio = $('#fio').val();
-        const city = $('#city').val();
         const addr = $('#address').val();
         const index = $('#post_index').val();
         const phone = $('#phone').val();
@@ -174,21 +183,19 @@
         const tg_c = $('#tg_contact').val();
 
         if (!selectedSize) return alert("выбери размер!");
-        if (!fio || !city || !addr || !index || !phone || !tg_c) return alert("заполни все поля!");
+        if (!fio || !addr || !phone || !tg_c) return alert("заполни все поля!");
 
         const orderData = {
             item: 'zip-hoodie "snich"',
             price: 8000,
             size: selectedSize,
             customer: fio,
-            city: city,
             address: addr,
             index: index,
             phone: phone,
             email: email,
             tg_user: tg_c
         };
-
         tg.sendData(JSON.stringify(orderData));
     }
 </script>

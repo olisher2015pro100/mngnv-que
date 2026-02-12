@@ -6,70 +6,69 @@
     <title>mngnv_que Store</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body { font-family: sans-serif; background: #000; color: #fff; padding: 20px; text-align: center; }
-        .item { border: 1px solid #333; padding: 15px; margin-bottom: 20px; border-radius: 10px; }
-        img { width: 100%; max-width: 300px; border-radius: 10px; }
-        input { width: 90%; padding: 10px; margin: 5px 0; border-radius: 5px; border: none; }
-        button { background: #fff; color: #000; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; }
-        h2 { margin: 10px 0; }
-        #order-form { margin-top: 30px; border-top: 1px solid #333; padding-top: 20px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #000; color: #fff; padding: 20px; margin: 0; display: flex; flex-direction: column; align-items: center; }
+        .container { width: 100%; max-width: 400px; padding-bottom: 50px; }
+        h1 { font-size: 28px; letter-spacing: 4px; text-transform: uppercase; margin: 20px 0; text-align: center; }
+        .product-card { background: #111; border-radius: 20px; padding: 15px; margin-bottom: 30px; text-align: center; border: 1px solid #222; }
+        .product-card img { width: 100%; border-radius: 15px; display: block; margin-bottom: 15px; }
+        .product-card h2 { margin: 10px 0 5px 0; font-size: 20px; }
+        .product-card .price { color: #888; font-size: 18px; margin-bottom: 10px; }
+        
+        .form-section h3 { font-size: 14px; text-transform: uppercase; color: #555; margin: 20px 0 10px 5px; letter-spacing: 1px; }
+        input { width: 100%; padding: 14px; margin-bottom: 10px; border-radius: 10px; border: 1px solid #222; background: #0a0a0a; color: #fff; box-sizing: border-box; font-size: 16px; }
+        input:focus { border-color: #fff; outline: none; }
+        
+        #order-btn { background: #fff; color: #000; padding: 18px; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; width: 100%; font-size: 16px; margin-top: 20px; }
+        #order-btn:active { transform: scale(0.98); }
     </style>
 </head>
 <body>
-    <h1>mngnv_que</h1>
-    
-    <div class="item">
-        <img src="https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/photo_2025-01-30_16-43-34.jpg" alt="Zip Hoodie">
-        <h2>Zip-Hoodie</h2>
-        <p>Цена: 8000 rub</p>
-    </div>
+    <div class="container">
+        <h1>MNGNV_QUE</h1>
+        
+        <div class="product-card">
+            <img src="https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/photo_2025-01-30_16-43-34.jpg" alt="Zip Hoodie">
+            <h2>Classic Zip-Hoodie</h2>
+            <div class="price">8000 RUB</div>
+        </div>
 
-    <div id="order-form">
-        <h3>Данные для доставки</h3>
-        <input type="text" id="user_name" placeholder="ФИО полностью">
-        <input type="text" id="user_city" placeholder="Город">
-        <input type="text" id="user_address" placeholder="Адрес ПВЗ (СДЭК/Почта)">
-        <input type="text" id="user_index" placeholder="Почтовый индекс">
-        <input type="tel" id="user_phone" placeholder="Номер телефона">
-        <input type="email" id="user_email" placeholder="Email">
-        <button id="buy-btn">Оформить заказ на 8000 rub</button>
+        <div class="form-section">
+            <h3>Доставка</h3>
+            <input type="text" id="name" placeholder="ФИО полностью">
+            <input type="text" id="city" placeholder="Город">
+            <input type="text" id="address" placeholder="Адрес ПВЗ (СДЭК/Почта)">
+            <input type="text" id="index" placeholder="Почтовый индекс">
+            <input type="tel" id="phone" placeholder="Номер телефона">
+            <input type="email" id="email" placeholder="Email">
+        </div>
+
+        <button id="order-btn">ОФОРМИТЬ ЗАКАЗ</button>
     </div>
 
     <script>
         let tg = window.Telegram.WebApp;
-        let buyBtn = document.getElementById('buy-btn');
+        let btn = document.getElementById('order-btn');
+        tg.expand();
 
-        tg.expand(); // Разворачиваем на весь экран
-
-        buyBtn.addEventListener('click', () => {
-            // Собираем данные из полей
-            let name = document.getElementById('user_name').value;
-            let city = document.getElementById('user_city').value;
-            let address = document.getElementById('user_address').value;
-            let index = document.getElementById('user_index').value;
-            let phone = document.getElementById('user_phone').value;
-            let email = document.getElementById('user_email').value;
-
-            // Простая проверка: заполнены ли поля
-            if (!name || !address || !phone) {
-                alert("Пожалуйста, заполни ФИО, адрес и телефон!");
-                return;
-            }
-
-            // Пакет данных для бота
-            let data = {
+        btn.addEventListener('click', () => {
+            let orderData = {
+                name: document.getElementById('name').value,
+                city: document.getElementById('city').value,
+                address: document.getElementById('address').value,
+                index: document.getElementById('index').value,
+                phone: document.getElementById('phone').value,
+                email: document.getElementById('email').value,
                 totalPrice: 8000,
-                name: name,
-                city: city,
-                address: address,
-                index: index,
-                phone: phone,
-                email: email,
                 count: 1
             };
 
-            tg.sendData(JSON.stringify(data)); // Отправляем боту
-            tg.close(); // Закрываем веб-апп
+            // Проверка на заполнение
+            if(!orderData.name || !orderData.phone || !orderData.address) {
+                tg.showAlert("Заполни хотя бы ФИО, Телефон и Адрес!");
+                return;
+            }
+
+            tg.sendData(JSON.stringify(orderData));
         });
     </script>
 </body>

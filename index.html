@@ -270,10 +270,11 @@ black/white
         $('.main-price').text(p.price + ' rub');
         $('.description').text(p.description);
 
-        // sizes — make last size span full width
+        // sizes — make last size span full width only for tshirt
         let sizesHtml = '';
+        const makeFull = (key === 'tshirt');
         p.sizes.forEach((s, i) => {
-            const cls = (i === p.sizes.length - 1) ? 'size-btn full' : 'size-btn';
+            const cls = (makeFull && i === p.sizes.length - 1) ? 'size-btn full' : 'size-btn';
             sizesHtml += `<div class="${cls}" onclick="selectSize(this)">${s}</div>`;
         });
         $('.sizes').html(sizesHtml);
@@ -291,6 +292,7 @@ black/white
         const fio = $('#fio').val();
         const addr = $('#address').val();
         const index = $('#post_index').val();
+        const email = $('#email').val();
         const phone = $('#phone').val();
         const tg_c = $('#tg_contact').val();
 
@@ -303,6 +305,7 @@ black/white
             item: p.title,
             price: p.price,
             size: selectedSize,
+            email: email,
             customer: fio,
             address: addr,
             index: index,

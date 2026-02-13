@@ -80,6 +80,7 @@
             padding: 20px; border: 1px solid #222; border-radius: 20px; 
             text-align: center; cursor: pointer; transition: 0.2s; font-weight: 800; font-size: 14px;
         }
+        .size-btn.full { grid-column: 1 / -1; }
         .size-btn.selected { background: var(--accent); color: #000; border-color: var(--accent); }
 
         /* ФОРМА */
@@ -117,7 +118,7 @@
 <body>
 
 <div class="app">
-    <header>MNGNV_QUE</header>
+    <header>mngnv_que</header>
 
     <div id="catalog-page" class="page active">
         <div class="catalog">
@@ -128,9 +129,12 @@
                     <div class="card-price">8000 rub</div>
                 </div>
             </div>
-            <div class="coming-soon-card">
-                <div style="font-weight: 900; font-size: 20px; letter-spacing: 3px;">COMING SOON</div>
-                <div style="font-size: 12px; margin-top: 5px; color: #222;">t-shirt drop 2026</div>
+            <div class="product-card" onclick="openProduct('tshirt')">
+                <img src="tshirt1.jpg" alt="tshirt">
+                <div class="card-info">
+                    <div class="card-title">t-shirt "snich"</div>
+                    <div class="card-price">2900 rub</div>
+                </div>
             </div>
         </div>
     </div>
@@ -157,7 +161,7 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
                 <div class="size-btn" onclick="selectSize(this)">big-size</div>
             </div>
             
-            <button class="btn-main" onclick="showPage('order-page')">Перейти к оформлению</button>
+            <button id="to-order-btn" class="btn-main" onclick="showPage('order-page')">Перейти к оформлению</button>
         </div>
     </div>
 
@@ -173,7 +177,7 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
             <input type="text" id="email" placeholder="Email">
             <input type="text" id="tg_contact" placeholder="@username в telegram">
             
-            <button class="btn-main" onclick="sendOrder()">Оформить заказ на 8000₽</button>
+            <button id="submit-order" class="btn-main" onclick="sendOrder()">Оформить заказ на 8000₽</button>
         </div>
     </div>
 </div>
@@ -199,27 +203,81 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
     });
 
     let selectedSize = "";
-    const images = [
-        "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode.jpg",
-        "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode1.jpg",
-        "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode2.jpg",
-        "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode3.jpg"
-    ];
+    let currentProductKey = 'hoodie';
+
+    const products = {
+        hoodie: {
+            title: 'zip-hoodie "snich"',
+            price: 8000,
+            description: `new drop
+оверсайз крой
+ткань:футер 3-х нитка /кружево / кулирная гладь / сетка (кружево и кулирная гладь на заклепках, по желанию их можно снять)
+машинная вышивка и нашивки тканью
+
+baby size (m-l) длина 65см спереди 75см сзади / ширина 65
+big size (xl+) длина 70см спереди 80см сзади / ширина 70`,
+            images: [
+                "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode.jpg",
+                "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode1.jpg",
+                "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode2.jpg",
+                "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode3.jpg"
+            ],
+            sizes: ['baby-size','big-size']
+        },
+        tshirt: {
+            title: 't-shirt "snich"',
+            price: 2900,
+            description: `material: 94% хлопок, 6% лайкра
+black/white
+оверсайз крой + фулл машинная вышивка`,
+            images: [
+                "tshirt1.jpg",
+                "tshirt2.jpg",
+                "tshirt3.jpg"
+            ],
+            sizes: ['s-m(160+)','m-l(170+)','l-xl(180+)']
+        }
+    };
 
     function showPage(pageId) {
         $('.page').removeClass('active');
         $('#' + pageId).addClass('active');
         window.scrollTo(0,0);
+
+        // when opening order page, update submit button to reflect current product price
+        if (pageId === 'order-page') {
+            const p = products[currentProductKey] || products.hoodie;
+            $('#submit-order').text(`Оформить заказ на ${p.price}₽`);
+        }
     }
 
-    function openProduct() {
-        let html = "";
-        images.forEach(img => { html += `<div class="swiper-slide"><img src="${img}"></div>`; });
+    function openProduct(key = 'hoodie') {
+        currentProductKey = key;
+        const p = products[key] || products.hoodie;
+        selectedSize = '';
+        $('.size-btn').removeClass('selected');
+
+        let html = '';
+        p.images.forEach(img => { html += `<div class="swiper-slide"><img src="${img}"></div>`; });
         $('#gallery').html(html);
+
         new Swiper(".mySwiper", { 
             pagination: { el: ".swiper-pagination", clickable: true },
             resistanceRatio: 0
         });
+
+        $('.main-title').text(p.title);
+        $('.main-price').text(p.price + ' rub');
+        $('.description').text(p.description);
+
+        // sizes — make last size span full width
+        let sizesHtml = '';
+        p.sizes.forEach((s, i) => {
+            const cls = (i === p.sizes.length - 1) ? 'size-btn full' : 'size-btn';
+            sizesHtml += `<div class="${cls}" onclick="selectSize(this)">${s}</div>`;
+        });
+        $('.sizes').html(sizesHtml);
+
         showPage('product-page');
     }
 
@@ -234,21 +292,21 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
         const addr = $('#address').val();
         const index = $('#post_index').val();
         const phone = $('#phone').val();
-        const email = $('#email').val(); // ЭТО ДОПОЛНИЛ
         const tg_c = $('#tg_contact').val();
 
         if (!selectedSize) { tg.showAlert("Выбери размер!"); return; }
         if (!fio || !addr || !phone || !tg_c) { tg.showAlert("Заполни все поля доставки!"); return; }
 
+        const p = products[currentProductKey] || products.hoodie;
+
         const orderData = {
-            item: 'zip-hoodie "snich"',
-            price: 8000,
+            item: p.title,
+            price: p.price,
             size: selectedSize,
             customer: fio,
             address: addr,
             index: index,
             phone: phone,
-            email: email, // ЭТО ДОПОЛНИЛ
             tg_user: tg_c
         };
         tg.sendData(JSON.stringify(orderData));

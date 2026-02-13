@@ -191,17 +191,6 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
     tg.expand();
     tg.headerColor = '#000000';
 
-    // DADATA Инициализация
-    $("#address").suggestions({
-        token: "1ed0eebc35156fe4fe197c5dd676354f40bfd073",
-        type: "ADDRESS",
-        onSelect: function(suggestion) {
-            if(suggestion.data.postal_code) {
-                $('#post_index').val(suggestion.data.postal_code);
-            }
-        }
-    });
-
     let selectedSize = "";
     let currentProductKey = 'hoodie';
 
@@ -238,6 +227,32 @@ black/white
             sizes: ['s-m(160+)','m-l(170+)','l-xl(180+)']
         }
     };
+
+    // Инициализация DaData при загрузке
+    $(document).ready(function() {
+        console.log("[DEBUG] Инициализирую DaData");
+        
+        if ($.fn.suggestions) {
+            $("#address").suggestions({
+                token: "1ed0eebc35156fe4fe197c5dd676354f40bfd073",
+                type: "ADDRESS",
+                count: 5,
+                onSelect: function(suggestion) {
+                    console.log("[DEBUG] DaData выбран:", suggestion);
+                    if(suggestion.data.postal_code) {
+                        $('#post_index').val(suggestion.data.postal_code);
+                        console.log("[DEBUG] Индекс заполнен:", suggestion.data.postal_code);
+                    }
+                },
+                onError: function(error) {
+                    console.error("[ERROR] DaData ошибка:", error);
+                }
+            });
+            console.log("[DEBUG] DaData инициализирован успешно");
+        } else {
+            console.error("[ERROR] suggestions плагин не загрузился");
+        }
+    });
 
     function showPage(pageId) {
         $('.page').removeClass('active');

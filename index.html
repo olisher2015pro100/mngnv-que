@@ -117,7 +117,7 @@
 <body>
 
 <div class="app">
-    <header>MNGNV_QUE</header>
+    <header>mngnv_que</header>
 
     <div id="catalog-page" class="page active">
         <div class="catalog">
@@ -234,7 +234,6 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
         const addr = $('#address').val();
         const index = $('#post_index').val();
         const phone = $('#phone').val();
-        const email = $('#email').val(); // ЭТО ДОПОЛНИЛ
         const tg_c = $('#tg_contact').val();
 
         if (!selectedSize) { tg.showAlert("Выбери размер!"); return; }
@@ -248,7 +247,6 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
             address: addr,
             index: index,
             phone: phone,
-            email: email, // ЭТО ДОПОЛНИЛ
             tg_user: tg_c
         };
         tg.sendData(JSON.stringify(orderData));

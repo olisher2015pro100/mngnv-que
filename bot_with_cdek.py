@@ -454,7 +454,7 @@ def main():
     uvicorn_config = uvicorn.Config(
         app,
         host="127.0.0.1",
-        port=8000,
+        port=8080,
         log_level="info"
     )
     

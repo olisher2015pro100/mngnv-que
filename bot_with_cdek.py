@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 # ====== БАЗОВЫЙ ИМПОРТ ======
 import asyncio
+import aiohttp
 
 # ====== AIOGRAM (С ПРОВЕРКОЙ) ======
 try:
@@ -25,6 +26,10 @@ try:
 except ImportError as e:
     print(f"❌ Ошибка импорта aiogram: {e}")
     AIOGRAM_AVAILABLE = False
+
+# ====== ПРОКСИ ДЛЯ PythonAnywhere ======
+PROXY_URL = "http://proxy.server:3128"
+print(f"🔗 Прокси: {PROXY_URL}")
 
 # ====== FASTAPI (С ПРОВЕРКОЙ) ======
 try:
@@ -76,16 +81,19 @@ CDEK_CLIENT_ID = os.getenv('CDEK_CLIENT_ID', '4I5vLAbLUPdMIOEhVD0osn4fS0fvTttj')
 CDEK_CLIENT_SECRET = os.getenv('CDEK_CLIENT_SECRET', 'g1WXBI56G3ZAPrY0TleKblVIwsnMCm8J')
 
 # ================================================
-# ⚠️ ИНИЦИАЛИЗАЦИЯ CDEK ПЕРЕМЕННЫХ
+# ⚠️ ИНИЦИАЛИЗАЦИЯ CDEK ПЕРЕМЕННЫХ И ПРОКСИ
 # ================================================
 if CDEK_AVAILABLE:
     try:
         import cdek_integration
         cdek_integration.CDEK_CLIENT_ID = CDEK_CLIENT_ID
         cdek_integration.CDEK_CLIENT_SECRET = CDEK_CLIENT_SECRET
+        # Устанавливаем прокси для CDEK запросов
+        cdek_integration.PROXY_URL = PROXY_URL
         print(f"✅ CDEK ключи установлены в cdek_integration:")
         print(f"   ID: {CDEK_CLIENT_ID[:15]}..." if CDEK_CLIENT_ID else "   ID: ❌ Пусто")
         print(f"   Secret: {'✅ Установлен' if CDEK_CLIENT_SECRET else '❌ Пусто'}")
+        print(f"✅ Прокси установлен для CDEK: {PROXY_URL}")
     except Exception as e:
         print(f"❌ Ошибка инициализации CDEK: {e}")
         CDEK_AVAILABLE = False
@@ -102,9 +110,23 @@ if not CDEK_CLIENT_ID or not CDEK_CLIENT_SECRET:
 # ================================================
 
 if AIOGRAM_AVAILABLE:
-    bot = Bot(token=BOT_TOKEN)
-    dp = Dispatcher()
-    print(f"✅ Telegram Bot инициализирован: {BOT_TOKEN[:20]}...")
+    try:
+        # Устанавливаем переменные окружения для прокси (для aiogram и aiohttp)
+        import os as os_module
+        os_module.environ['HTTP_PROXY'] = PROXY_URL
+        os_module.environ['HTTPS_PROXY'] = PROXY_URL
+        os_module.environ['ALL_PROXY'] = PROXY_URL
+        
+        # Инициализируем Bot - он будет использовать прокси из переменных окружения
+        bot = Bot(token=BOT_TOKEN)
+        dp = Dispatcher()
+        print(f"✅ Telegram Bot инициализирован: {BOT_TOKEN[:20]}...")
+        print(f"✅ Bot настроен с прокси: {PROXY_URL}")
+    except Exception as e:
+        print(f"❌ Ошибка инициализации Bot: {e}")
+        bot = None
+        dp = None
+        AIOGRAM_AVAILABLE = False
 else:
     bot = None
     dp = None

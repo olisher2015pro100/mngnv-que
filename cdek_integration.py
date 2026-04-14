@@ -18,7 +18,9 @@ load_dotenv()
 # КОНФИГ И ПЕРЕМЕННЫЕ
 # ==========================================
 
-# ⚠️ ЗАПОЛНИ СВОИ КЛЮЧИ В .env файл:
+# 🌐 ПРОКСИ ДЛЯ PythonAnywhere (устанавливается из bot_with_cdek.py)
+PROXY_URL = os.getenv("PROXY_URL", "http://proxy.server:3128")
+print(f"🔗 PROXY_URL для CDEK: {PROXY_URL}")
 CDEK_CLIENT_ID = os.getenv("CDEK_CLIENT_ID", "")
 CDEK_CLIENT_SECRET = os.getenv("CDEK_CLIENT_SECRET", "")
 
@@ -67,6 +69,7 @@ async def get_cdek_oauth_token() -> Optional[str]:
         return None
     
     try:
+        # Используем прокси для подключения
         async with aiohttp.ClientSession() as session:
             payload = {
                 "grant_type": "client_credentials",
@@ -74,8 +77,15 @@ async def get_cdek_oauth_token() -> Optional[str]:
                 "client_secret": CDEK_CLIENT_SECRET
             }
             
+            print(f"🌐 Получаю токен CDEK через прокси: {PROXY_URL}")
+            
             # ⚠️ ВАЖНО: CDEK требует form-encoded, не JSON!
-            async with session.post(CDEK_AUTH_URL, data=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            async with session.post(
+                CDEK_AUTH_URL,
+                data=payload,
+                timeout=aiohttp.ClientTimeout(total=10),
+                proxy=PROXY_URL  # ← ИСПОЛЬЗУЕМ ПРОКСИ
+            ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     token = data.get("access_token")
@@ -85,21 +95,26 @@ async def get_cdek_oauth_token() -> Optional[str]:
                     _token_cache["token"] = token
                     _token_cache["expires_at"] = datetime.now() + timedelta(seconds=expires_in - 300)
                     
-                    logger.info(f"✅ Получен новый CDEK OAuth токен (истечет через {expires_in}с)")
+                    logger.info(f"✅ Получен новый CDEK OAuth токен через прокси (истечет через {expires_in}с)")
+                    print(f"✅ Токен CDEK получен успешно через прокси")
                     return token
                 else:
                     error_text = await resp.text()
                     logger.error(f"❌ Ошибка получения токена CDEK (статус {resp.status}): {error_text}")
+                    print(f"❌ Ошибка получения токена: статус {resp.status}")
                     return None
                     
     except asyncio.TimeoutError:
-        logger.error("⏱️ Timeout при попытке получить токен CDEK")
+        logger.error("⏱️ Timeout при попытке получить токен CDEK через прокси")
+        print("❌ Timeout при получении токена CDEK")
         return None
     except aiohttp.ClientError as e:
-        logger.error(f"🌐 Ошибка сетевого соединения CDEK: {e}")
+        logger.error(f"🌐 Ошибка сетевого соединения CDEK (прокси): {e}")
+        print(f"❌ Ошибка сетевого соединения: {e}")
         return None
     except Exception as e:
         logger.error(f"💥 Неожиданная ошибка при получении токена: {e}")
+        print(f"❌ Неожиданная ошибка: {e}")
         return None
 
 
@@ -132,7 +147,8 @@ async def get_city_code(city_name: str) -> Optional[int]:
                 CDEK_CITIES_URL,
                 headers=headers,
                 params=params,
-                timeout=aiohttp.ClientTimeout(total=10)
+                timeout=aiohttp.ClientTimeout(total=10),
+                proxy=PROXY_URL  # ← ИСПОЛЬЗУЕМ ПРОКСи
             ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
@@ -164,9 +180,12 @@ async def get_city_code(city_name: str) -> Optional[int]:
                             return city_code
                     
                     logger.warning(f"⚠️ Город '{city_name}' не найден в СДЭК")
+                    print(f"⚠️ Город '{city_name}' не найден в списке CDEK")
                     return None
                 else:
-                    logger.error(f"❌ Ошибка поиска города (статус {resp.status})")
+                    error_text = await resp.text()
+                    logger.error(f"❌ Ошибка поиска города (статус {resp.status}): {error_text}")
+                    print(f"❌ Ошибка поиска города: статус {resp.status}")
                     return None
                     
     except asyncio.TimeoutError:
@@ -241,12 +260,15 @@ async def calculate_shipping(city_name: str) -> Tuple[int, str]:
             # type передаем как параметр URL, а не в теле запроса!
             params = {"type": 36}
             
+            print(f"🌐 Отправляю CDEK тарифный запрос через прокси: {PROXY_URL}")
+            
             async with session.post(
                 CDEK_CALC_URL,
                 json=payload,
                 params=params,
                 headers=headers,
-                timeout=aiohttp.ClientTimeout(total=15)
+                timeout=aiohttp.ClientTimeout(total=15),
+                proxy=PROXY_URL  # ← ИСПОЛЬЗУЕМ ПРОКСИ
             ) as resp:
                 if resp.status == 200:
                     data = await resp.json()

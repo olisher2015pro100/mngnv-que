@@ -7,7 +7,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
-    <link href="https://cdn.jsdelivr.net/npm/suggestions-jquery@21.12.0/dist/css/suggestions.min.css" rel="stylesheet" />
     
     <style>
         :root { 
@@ -84,42 +83,69 @@
         .size-btn.selected { background: var(--accent); color: #000; border-color: var(--accent); }
 
         /* ФОРМА */
-        .form-group { margin-bottom: 12px; }
-        input { 
+        .form-group { margin-bottom: 12px; position: relative; }
+        input, select { 
             width: 100%; padding: 20px; border-radius: 20px; 
             background: var(--input-bg); border: 1px solid #1a1a1a; color: #fff; 
             box-sizing: border-box; outline: none; font-family: 'Inter', sans-serif; font-size: 16px;
             transition: 0.2s;
         }
-        input:focus { border-color: #444; background: #151515; }
+        input:focus, select:focus { border-color: #444; background: #151515; }
         input::placeholder { color: #444; }
 
         .btn-main { 
             width: 100%; padding: 22px; background: var(--accent); color: #000; 
             border: none; border-radius: 22px; font-weight: 900; font-size: 17px; 
             text-transform: uppercase; cursor: pointer; margin-top: 10px;
-            letter-spacing: 1px;
+            letter-spacing: 1px; transition: 0.2s;
         }
+        .btn-main:active { transform: scale(0.98); }
 
-        /* DaData Dropdown */
-        .suggestions-suggestions { 
-            background: #1a1a1a !important; 
-            border: 1px solid #333 !important; 
-            color: #fff !important; 
-            border-radius: 15px !important;
-            font-family: 'Inter', sans-serif !important;
-            text-transform: none !important;
+        /* ДОСТАВКА ИНФО */
+        .shipping-info {
+            background: #080808; border: 1px solid #1a1a1a; border-radius: 20px;
+            padding: 20px; margin-bottom: 20px; font-size: 14px;
         }
-        .suggestions-suggestion { padding: 12px 15px !important; }
-        .suggestions-suggestion:hover { background: #222 !important; }
-        .suggestions-hint { color: #555 !important; padding: 10px !important; }
+        .shipping-cost { font-size: 20px; font-weight: 900; margin-top: 10px; }
+        .shipping-status { 
+            display: inline-block; padding: 8px 12px; border-radius: 10px; 
+            font-size: 12px; font-weight: 800; margin-top: 8px;
+        }
+        .shipping-status.loading { background: #222; color: #888; }
+        .shipping-status.success { background: #1a3a1a; color: #4f4; }
+        .shipping-status.error { background: #3a1a1a; color: #f44; }
+
+        /* ГОРОД ПОДСКАЗКИ */
+        .city-suggestions {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: #1a1a1a; border: 1px solid #333; border-radius: 15px;
+            max-height: 200px; overflow-y: auto; z-index: 200; margin-top: 5px;
+            display: none;
+        }
+        .city-suggestions.show { display: block; }
+        .suggestion-item {
+            padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #222;
+            transition: 0.1s;
+        }
+        .suggestion-item:hover { background: #222; }
+        .suggestion-item:last-child { border-bottom: none; }
+
+        /* LOADING SPINNER */
+        .spinner {
+            display: inline-block; width: 12px; height: 12px;
+            border: 2px solid #444; border-top: 2px solid #fff; border-radius: 50%;
+            animation: spin 0.6s linear infinite; margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
     </style>
 </head>
 <body>
 
 <div class="app">
-    <header>uglyclothes</header>
+    <header>mngnv</header>
 
+    <!-- КАТАЛОГ -->
     <div id="catalog-page" class="page active">
         <div class="catalog">
             <div class="product-card" onclick="openProduct()">
@@ -139,6 +165,7 @@
         </div>
     </div>
 
+    <!-- КАРТОЧКА ТОВАРА -->
     <div id="product-page" class="page">
         <div class="back-nav" onclick="showPage('catalog-page')">← КАТАЛОГ</div>
         <div class="swiper mySwiper">
@@ -165,26 +192,71 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
         </div>
     </div>
 
+    <!-- ОФОРМЛЕНИЕ ДОСТАВКИ -->
     <div id="order-page" class="page">
         <div class="back-nav" onclick="showPage('product-page')">← К ТОВАРУ</div>
         <div class="details">
             <h2 style="margin-bottom: 25px; font-weight: 900; font-size: 28px;">ДОСТАВКА</h2>
             
-            <input type="text" id="fio" placeholder="ФИО">
-            <input type="text" id="address" placeholder="Город, адрес ПВЗ (СДЭК/Почта)">
-            <input type="text" id="post_index" placeholder="Почтовый индекс" maxlength="6">
-            <input type="text" id="phone" placeholder="Номер телефона">
-            <input type="text" id="email" placeholder="Email">
-            <input type="text" id="tg_contact" placeholder="@username в telegram">
-            
-            <button id="submit-order" class="btn-main" onclick="sendOrder()">Оформить заказ на 8000₽</button>
+            <div class="form-group">
+                <input type="text" id="fio" placeholder="ФИО" maxlength="100">
+            </div>
+
+            <div class="form-group">
+                <input 
+                    type="tel" 
+                    id="phone" 
+                    placeholder="Номер телефона (+7 или 8...)" 
+                    maxlength="20"
+                    autocomplete="tel"
+                >
+                <span style="font-size: 12px; color: #666;">Нужен для звонка курьера</span>
+            </div>
+
+            <!-- ВЫБОР ГОРОДА С ПОДСКАЗКАМИ -->
+            <div class="form-group">
+                <label style="display: block; margin-bottom: 8px; font-size: 12px; color: #888; text-transform: uppercase; font-weight: 800;">Город доставки (СДЭК)</label>
+                <input 
+                    type="text" 
+                    id="city" 
+                    placeholder="Начни вводить город (напр. Москва)..." 
+                    maxlength="50"
+                    autocomplete="off"
+                >
+                <div class="city-suggestions" id="city-suggestions"></div>
+            </div>
+
+            <!-- ИНФО ПО ДОСТАВКЕ -->
+            <div class="shipping-info" id="shipping-info" style="display: none;">
+                <div style="color: #888;">💰 Стоимость доставки:</div>
+                <div class="shipping-cost" id="shipping-cost">...</div>
+                <div id="shipping-status" class="shipping-status loading">
+                    <span class="spinner"></span>Загрузка...
+                </div>
+            </div>
+
+            <div class="form-group">
+                <input type="text" id="address" placeholder="Адрес / ПВЗ СДЭК или Почты России" maxlength="200">
+            </div>
+
+            <div class="form-group">
+                <input type="text" id="post_index" placeholder="Почтовый индекс" maxlength="6" inputmode="numeric">
+            </div>
+
+            <div class="form-group">
+                <input type="email" id="email" placeholder="Email (опционально)" maxlength="100">
+            </div>
+
+            <div class="form-group">
+                <input type="text" id="tg_contact" placeholder="@username в telegram" maxlength="50">
+            </div>
+
+            <button id="submit-order" class="btn-main" onclick="sendOrder()">Оформить заказ</button>
         </div>
     </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/suggestions-jquery@21.12.0/dist/js/jquery.suggestions.min.js"></script>
 
 <script>
     const tg = window.Telegram.WebApp;
@@ -193,6 +265,8 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
 
     let selectedSize = "";
     let currentProductKey = 'hoodie';
+    let currentShippingCost = 500;
+    let selectedCity = "";
 
     const products = {
         hoodie: {
@@ -228,107 +302,238 @@ black/white
         }
     };
 
-    // Инициализация DaData при загрузке
-    $(document).ready(function() {
-        console.log("[DEBUG] Инициализирую DaData");
-        
-        if ($.fn.suggestions) {
-            $("#address").suggestions({
-                token: "1ed0eebc35156fe4fe197c5dd676354f40bfd073",
-                type: "ADDRESS",
-                count: 5,
-                onSelect: function(suggestion) {
-                    console.log("[DEBUG] DaData выбран:", suggestion);
-                    if(suggestion.data.postal_code) {
-                        $('#post_index').val(suggestion.data.postal_code);
-                        console.log("[DEBUG] Индекс заполнен:", suggestion.data.postal_code);
-                    }
-                },
-                onError: function(error) {
-                    console.error("[ERROR] DaData ошибка:", error);
-                }
-            });
-            console.log("[DEBUG] DaData инициализирован успешно");
-        } else {
-            console.error("[ERROR] suggestions плагин не загрузился");
-        }
+    // 🏙️ СПИСОК ПОПУЛЯРНЫХ ГОРОДОВ РФ
+    const popularCities = [
+        "Москва", "Санкт-Петербург", "Новосибирск", "Екатеринбург", "Казань",
+        "Челябинск", "Омск", "Самара", "Уфа", "Ростов-на-Дону",
+        "Пермь", "Воронеж", "Волгоград", "Краснодар", "Саратов",
+        "Тюмень", "Иркутск", "Ульяновск", "Барнаул", "Владивосток",
+        "Киров", "Махачкала", "Томск", "Оренбург", "Кемерово",
+        "Улан-Удэ", "Нижний Новгород", "Чебоксары", "Мордовия", "Смоленск"
+    ];
+
+    // 🌐 ЛОГИКА ИНИЦИАЛИЗАЦИИ
+    document.addEventListener('DOMContentLoaded', function() {
+        // Слушаем ввод в поле города
+        document.getElementById('city').addEventListener('input', onCityInput);
+        document.getElementById('city').addEventListener('blur', hideCitySuggestions);
+        document.getElementById('phone').addEventListener('input', formatPhone);
     });
 
-    function showPage(pageId) {
-        $('.page').removeClass('active');
-        $('#' + pageId).addClass('active');
-        window.scrollTo(0,0);
-
-        // when opening order page, update submit button to reflect current product price
-        if (pageId === 'order-page') {
-            const p = products[currentProductKey] || products.hoodie;
-            $('#submit-order').text(`Оформить заказ на ${p.price}₽`);
+    // 📝 ФОРМАТИРОВАНИЕ ТЕЛЕФОНА
+    function formatPhone(e) {
+        let value = e.target.value.replace(/\D/g, '');
+        
+        // Ограничения по длине
+        if (value.length > 11) {
+            value = value.slice(0, 11);
         }
+        
+        // Красивое отображение
+        let formatted = '';
+        if (value.length > 0) {
+            if (value[0] === '7' || value[0] === '8') {
+                formatted = '+7 ';
+                if (value.length > 1) formatted += value.slice(1, 4) + ' ';
+                if (value.length > 4) formatted += value.slice(4, 7) + ' ';
+                if (value.length > 7) formatted += value.slice(7, 9) + ' ';
+                if (value.length > 9) formatted += value.slice(9, 11);
+            } else {
+                formatted = value;
+            }
+        }
+        
+        e.target.value = formatted;
+    }
+
+    // 🏙️ ПОДСКАЗКИ ГОРОДА
+    function onCityInput(e) {
+        const query = e.target.value.trim();
+        const suggestionsDiv = document.getElementById('city-suggestions');
+        
+        if (query.length < 1) {
+            suggestionsDiv.classList.remove('show');
+            return;
+        }
+        
+        const matches = popularCities.filter(city => 
+            city.toLowerCase().includes(query.toLowerCase())
+        );
+        
+        if (matches.length === 0) {
+            suggestionsDiv.classList.remove('show');
+            return;
+        }
+        
+        // Показываем до 5 предложений
+        let html = '';
+        matches.slice(0, 5).forEach(city => {
+            html += `<div class="suggestion-item" onclick="selectCity('${city}')">${city}</div>`;
+        });
+        
+        suggestionsDiv.innerHTML = html;
+        suggestionsDiv.classList.add('show');
+    }
+
+    // 🎯 ВЫБОР ГОРОДА И РАСЧЕТ ДОСТАВКИ
+    async function selectCity(cityName) {
+        selectedCity = cityName;
+        document.getElementById('city').value = cityName;
+        document.getElementById('city-suggestions').classList.remove('show');
+        
+        // Показываем загрузку
+        const shippingInfo = document.getElementById('shipping-info');
+        const statusDiv = document.getElementById('shipping-status');
+        
+        shippingInfo.style.display = 'block';
+        statusDiv.innerHTML = '<span class="spinner"></span>Рассчитываю доставку...';
+        statusDiv.className = 'shipping-status loading';
+        
+        try {
+            // ОТПРАВЛЯЕМ ЗАПРОС НА BACKEND
+            const response = await fetch('/api/calculate-shipping', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ city: cityName })
+            });
+            
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            const data = await response.json();
+            currentShippingCost = data.cost || 500;
+            
+            // Обновляем UI
+            document.getElementById('shipping-cost').textContent = `${currentShippingCost} ₽`;
+            statusDiv.innerHTML = `✅ ${data.description || 'Доставка рассчитана'}`;
+            statusDiv.className = 'shipping-status success';
+            
+            console.log(`✅ Доставка в ${cityName}: ${currentShippingCost} ₽`);
+            
+        } catch (error) {
+            console.error("❌ Ошибка расчета доставки:", error);
+            currentShippingCost = 500;
+            document.getElementById('shipping-cost').textContent = `${currentShippingCost} ₽ (по умолчанию)`;
+            statusDiv.innerHTML = '⚠️ Используется стандартная стоимость';
+            statusDiv.className = 'shipping-status error';
+        }
+        
+        updateTotalPrice();
+    }
+
+    function hideCitySuggestions() {
+        setTimeout(() => {
+            document.getElementById('city-suggestions').classList.remove('show');
+        }, 200);
+    }
+
+    // 📊ОБЩ ФУНКЦИИ
+    function showPage(pageId) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(pageId).classList.add('active');
+        window.scrollTo(0, 0);
+
+        if (pageId === 'order-page') {
+            updateTotalPrice();
+        }
+    }
+
+    function updateTotalPrice() {
+        const p = products[currentProductKey] || products.hoodie;
+        const total = p.price + currentShippingCost;
+        document.getElementById('submit-order').textContent = `Оформить заказ на ${total}₽`;
     }
 
     function openProduct(key = 'hoodie') {
         currentProductKey = key;
         const p = products[key] || products.hoodie;
         selectedSize = '';
-        $('.size-btn').removeClass('selected');
+        document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('selected'));
 
         let html = '';
         p.images.forEach(img => { html += `<div class="swiper-slide"><img src="${img}"></div>`; });
-        $('#gallery').html(html);
+        document.getElementById('gallery').innerHTML = html;
 
         new Swiper(".mySwiper", { 
             pagination: { el: ".swiper-pagination", clickable: true },
             resistanceRatio: 0
         });
 
-        $('.main-title').text(p.title);
-        $('.main-price').text(p.price + ' rub');
-        $('.description').text(p.description);
+        document.querySelector('.main-title').textContent = p.title;
+        document.querySelector('.main-price').textContent = p.price + ' rub';
+        document.querySelector('.description').textContent = p.description;
 
-        // sizes — make last size span full width only for tshirt
         let sizesHtml = '';
-        const makeFull = (key === 'tshirt');
         p.sizes.forEach((s, i) => {
-            const cls = (makeFull && i === p.sizes.length - 1) ? 'size-btn full' : 'size-btn';
+            const cls = (key === 'tshirt' && i === p.sizes.length - 1) ? 'size-btn full' : 'size-btn';
             sizesHtml += `<div class="${cls}" onclick="selectSize(this)">${s}</div>`;
         });
-        $('.sizes').html(sizesHtml);
+        document.querySelector('.sizes').innerHTML = sizesHtml;
 
         showPage('product-page');
     }
 
     function selectSize(btn) {
-        $('.size-btn').removeClass('selected');
-        $(btn).addClass('selected');
-        selectedSize = $(btn).text();
+        document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedSize = btn.textContent;
     }
 
+    // ✅ ОТПРАВКА ЗАКАЗА
     function sendOrder() {
-        const fio = $('#fio').val();
-        const addr = $('#address').val();
-        const index = $('#post_index').val();
-        const email = $('#email').val();
-        const phone = $('#phone').val();
-        const tg_c = $('#tg_contact').val();
+        const fio = document.getElementById('fio').value.trim();
+        const city = document.getElementById('city').value.trim();
+        const phone = document.getElementById('phone').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const tg_c = document.getElementById('tg_contact').value.trim();
+        const address = document.getElementById('address').value.trim();
+        const post_index = document.getElementById('post_index').value.trim();
 
-        if (!selectedSize) { tg.showAlert("Выбери размер!"); return; }
-        if (!fio || !addr || !phone || !tg_c) { tg.showAlert("Заполни все поля доставки!"); return; }
+        // ✓ ВАЛИДАЦИЯ
+        if (!selectedSize) {
+            tg.showAlert("🚫 Выбери размер!");
+            return;
+        }
+        if (!fio) {
+            tg.showAlert("🚫 Заполни ФИО!");
+            return;
+        }
+        if (!phone || phone.replace(/\D/g, '').length < 10) {
+            tg.showAlert("🚫 Введи корректный номер телефона!");
+            return;
+        }
+        if (!city) {
+            tg.showAlert("🚫 Выбери город доставки!");
+            return;
+        }
+        if (!address) {
+            tg.showAlert("🚫 Укажи адрес или ПВЗ!");
+            return;
+        }
+        if (!tg_c) {
+            tg.showAlert("🚫 Укажи telegram!");
+            return;
+        }
 
         const p = products[currentProductKey] || products.hoodie;
 
         const orderData = {
             item: p.title,
             price: p.price,
+            shipping_cost: currentShippingCost,
+            shipping_city: city,
             size: selectedSize,
-            email: email,
             customer: fio,
-            address: addr,
-            index: index,
             phone: phone,
+            email: email,
+            address: address,
+            index: post_index,
             tg_user: tg_c
         };
+
+        console.log("📦 Отправляю заказ:", orderData);
         tg.sendData(JSON.stringify(orderData));
     }
 </script>
+
 </body>
 </html>

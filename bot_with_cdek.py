@@ -71,9 +71,9 @@ ADMIN_ID = ADMINS[0] if ADMINS else None
 # Mini App URL - ОБНОВИ НА СВОЙ URL!
 MINI_APP_URL = os.getenv('MINI_APP_URL', 'https://yourdomain.com/index.html')
 
-# CDEK API ключи - ОБЯЗАТЕЛЬНО ЗАПОЛНИ!
-CDEK_CLIENT_ID = os.getenv('CDEK_CLIENT_ID', '')
-CDEK_CLIENT_SECRET = os.getenv('CDEK_CLIENT_SECRET', '')
+# CDEK API ключи - ОБНОВЛЕНО!
+CDEK_CLIENT_ID = os.getenv('CDEK_CLIENT_ID', '4I5vLAbLUPdMIOEhVD0osn4fS0fvTttj')
+CDEK_CLIENT_SECRET = os.getenv('CDEK_CLIENT_SECRET', 'g1WXBI56G3ZAPrY0TleKblVIwsnMCm8J')
 
 # ================================================
 # ⚠️ ИНИЦИАЛИЗАЦИЯ CDEK ПЕРЕМЕННЫХ
@@ -83,7 +83,9 @@ if CDEK_AVAILABLE:
         import cdek_integration
         cdek_integration.CDEK_CLIENT_ID = CDEK_CLIENT_ID
         cdek_integration.CDEK_CLIENT_SECRET = CDEK_CLIENT_SECRET
-        print(f"✅ CDEK ключи установлены: {CDEK_CLIENT_ID[:20]}..." if CDEK_CLIENT_ID else "⚠️ CDEK_CLIENT_ID не установлен")
+        print(f"✅ CDEK ключи установлены в cdek_integration:")
+        print(f"   ID: {CDEK_CLIENT_ID[:15]}..." if CDEK_CLIENT_ID else "   ID: ❌ Пусто")
+        print(f"   Secret: {'✅ Установлен' if CDEK_CLIENT_SECRET else '❌ Пусто'}")
     except Exception as e:
         print(f"❌ Ошибка инициализации CDEK: {e}")
         CDEK_AVAILABLE = False
@@ -93,6 +95,7 @@ else:
 if not CDEK_CLIENT_ID or not CDEK_CLIENT_SECRET:
     logger.warning("⚠️ CDEK_CLIENT_ID или CDEK_CLIENT_SECRET не установлены!")
     logger.warning("   Доставка будет рассчитываться как 500 ₽ по умолчанию")
+    print("⚠️ CDEK ключи НЕ установлены! Будет использоваться фиксированная стоимость 500₽")
 
 # ================================================
 # AIOGRAM BOT
@@ -260,6 +263,9 @@ async def calculate_shipping_endpoint(request: Request) -> Dict:
     print("\n" + "="*60)
     print("📍 ЭНДПОИНТ /api/calculate-shipping")
     print("="*60)
+    print(f"🔑 CDEK Client ID: {CDEK_CLIENT_ID[:10]}..." if CDEK_CLIENT_ID else "❌ CDEK Client ID не установлен")
+    print(f"🔐 CDEK Client Secret: {'✅ Установлен' if CDEK_CLIENT_SECRET else '❌ Не установлен'}")
+    print("="*60)
     
     try:
         data = await request.json()
@@ -279,6 +285,17 @@ async def calculate_shipping_endpoint(request: Request) -> Dict:
         
         print(f"✅ Город валидный, начинаю расчет...")
         logger.info(f"📍 Расчет доставки для города: {city}")
+        
+        # Проверяем наличие ключей
+        if not CDEK_CLIENT_ID or not CDEK_CLIENT_SECRET:
+            print("❌ ОШИБКА: Ключи CDEK не установлены!")
+            print(f"   CDEK_CLIENT_ID: {'❌' if not CDEK_CLIENT_ID else '✅'}")
+            print(f"   CDEK_CLIENT_SECRET: {'❌' if not CDEK_CLIENT_SECRET else '✅'}")
+            return {
+                "cost": 500,
+                "description": "❌ КРИТИЧЕСКАЯ ОШИБКА: Ключи CDEK не установлены",
+                "city": city
+            }
         
         # Проверяем, доступна ли функция расчета
         if not CDEK_AVAILABLE:
@@ -335,11 +352,28 @@ async def calculate_shipping_endpoint(request: Request) -> Dict:
 @app.get("/api/health")
 async def health_check():
     """Проверка здоровья API"""
-    token = await get_cdek_oauth_token()
+    print("\n📊 Проверка здоровья API...")
+    
+    token = None
+    try:
+        if CDEK_AVAILABLE and CDEK_CLIENT_ID and CDEK_CLIENT_SECRET:
+            token = await get_cdek_oauth_token()
+            print(f"   CDEK токен: {'✅ Получен' if token else '❌ Не получен'}")
+        else:
+            print("   CDEK недоступен или ключи не установлены")
+    except Exception as e:
+        print(f"   CDEK ошибка: {e}")
+    
+    bot_ok = bot.token is not None if AIOGRAM_AVAILABLE and bot else False
+    print(f"   Telegram Bot: {'✅' if bot_ok else '❌'}")
+    print(f"   CDEK Client ID: {'✅' if CDEK_CLIENT_ID else '❌'}")
+    print(f"   Ключи установлены: {'✅ ДА' if (CDEK_CLIENT_ID and CDEK_CLIENT_SECRET) else '❌ НЕТ'}\n")
+    
     return {
         "status": "ok",
         "cdek_connected": token is not None,
-        "bot_initialized": bot.token is not None
+        "cdek_keys_present": bool(CDEK_CLIENT_ID and CDEK_CLIENT_SECRET),
+        "bot_initialized": bot_ok
     }
 
 
@@ -385,7 +419,8 @@ def main():
     
     print("\n📋 КОНФИГУРАЦИЯ:")
     print(f"   Bot Token: {BOT_TOKEN[:20]}..." if BOT_TOKEN else "   Bot Token: ❌ НЕ УСТАНОВЛЕН")
-    print(f"   CDEK Client: {'✅' if CDEK_CLIENT_ID else '❌'} Установлен")
+    print(f"   CDEK Client ID: {CDEK_CLIENT_ID[:15]}..." if CDEK_CLIENT_ID else "   CDEK Client ID: ❌ НЕ УСТАНОВЛЕН")
+    print(f"   CDEK Client Secret: {'✅ Установлен' if CDEK_CLIENT_SECRET else '❌ НЕ УСТАНОВЛЕН'}")
     print(f"   Mini App URL: {MINI_APP_URL}")
     
     print("\n🔍 СТАТУС КОМПОНЕНТОВ:")

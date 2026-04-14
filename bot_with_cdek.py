@@ -34,20 +34,26 @@ print(f"🔗 Прокси: {PROXY_URL}")
 # ====== FASTAPI (С ПРОВЕРКОЙ) ======
 try:
     from fastapi import FastAPI, Request
-    from fastapi.responses import JSONResponse
     from fastapi.middleware.cors import CORSMiddleware
-    import uvicorn
     FASTAPI_AVAILABLE = True
-    print("✅ FastAPI импортирован успешно")
+    
+    # Создаем приложение ВНУТРИ блока try
     app = FastAPI()
 
-# Добавляем CORS, чтобы GitHub (фронтенд) мог легально стучаться на сервер
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Разрешаем запросы со всех доменов
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Добавляем CORS
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    print("✅ FastAPI и CORS инициализированы")
+
+except Exception as e:
+    print(f"❌ Ошибка при запуске FastAPI: {e}")
+    FASTAPI_AVAILABLE = False
+    app = None # Чтобы код не падал дальше
 )
 except ImportError as e:
     print(f"❌ Ошибка импорта FastAPI: {e}")

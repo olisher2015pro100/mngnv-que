@@ -219,7 +219,11 @@ async def calculate_shipping_endpoint(request: Request) -> Dict:
         data = await request.json()
         city = data.get('city', '').strip()
         
+        print(f"📍 Запрос на расчет для города: {city}")
+        logger.info(f"📍 Запрос на расчет для города: {city}")
+        
         if not city:
+            print("⚠️ Пустое имя города в запросе доставки")
             logger.warning("⚠️ Пустое имя города в запросе доставки")
             return {
                 "cost": 500,
@@ -227,25 +231,36 @@ async def calculate_shipping_endpoint(request: Request) -> Dict:
                 "city": ""
             }
         
+        print(f"📍 Расчет доставки для города: {city}")
         logger.info(f"📍 Расчет доставки для города: {city}")
         
         # Вызываем асинхронную функцию из cdek_integration
         cost, description = await calculate_shipping(city)
         
-        return {
+        print(f"✅ Результат: стоимость={cost}, описание={description}")
+        logger.info(f"✅ Результат: стоимость={cost}, описание={description}")
+        
+        response_data = {
             "cost": cost,
             "description": description,
             "city": city
         }
         
-    except json.JSONDecodeError:
-        logger.error("❌ Ошибка парсинга JSON в запросе доставки")
+        print(f"📤 Отправляю ответ: {response_data}")
+        logger.info(f"📤 Отправляю ответ: {response_data}")
+        
+        return response_data
+        
+    except json.JSONDecodeError as e:
+        print(f"❌ Ошибка парсинга JSON в запросе доставки: {e}")
+        logger.error(f"❌ Ошибка парсинга JSON в запросе доставки: {e}")
         return {
             "cost": 500,
             "description": "Ошибка: некорректный JSON",
             "city": ""
         }
     except Exception as e:
+        print(f"💥 Ошибка в endpoint доставки: {e}")
         logger.error(f"💥 Ошибка в endpoint доставки: {e}")
         return {
             "cost": 500,

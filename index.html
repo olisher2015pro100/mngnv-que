@@ -8,6 +8,13 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Dadata Suggestions -->
+    <link href="https://cdn.jsdelivr.net/npm/suggestions-jquery@18.8.0/css/suggestions.min.css" rel="stylesheet"/>
+    <script src="https://cdn.jsdelivr.net/npm/suggestions-jquery@18.8.0/js/jquery.suggestions.min.js"></script>
+    
+    
     <style>
         :root { 
             --bg: #000; 
@@ -318,6 +325,21 @@ black/white
         document.getElementById('city').addEventListener('input', onCityInput);
         document.getElementById('city').addEventListener('blur', hideCitySuggestions);
         document.getElementById('phone').addEventListener('input', formatPhone);
+        
+        // 🏙️ DaData Suggestions для городов
+        $.suggestions.setOptions({
+            serviceUrl: "https://suggestions.dadata.ru/suggestions/api/4_1/rs",
+            token: "4199859f518e3881373595f59068b5563914562a"
+        });
+
+        $("#city").suggestions({
+            type: "ADDRESS",
+            onSelect: function(suggestion) {
+                selectCity(suggestion.data.city);
+            },
+            minChars: 1,
+            position: "bottom"
+        });
     });
 
     // 📝 ФОРМАТИРОВАНИЕ ТЕЛЕФОНА

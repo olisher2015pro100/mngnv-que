@@ -39,6 +39,16 @@ try:
     import uvicorn
     FASTAPI_AVAILABLE = True
     print("✅ FastAPI импортирован успешно")
+    app = FastAPI()
+
+# Добавляем CORS, чтобы GitHub (фронтенд) мог легально стучаться на сервер
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Разрешаем запросы со всех доменов
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 except ImportError as e:
     print(f"❌ Ошибка импорта FastAPI: {e}")
     FASTAPI_AVAILABLE = False

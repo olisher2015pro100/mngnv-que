@@ -505,10 +505,14 @@ black/white
             
         } catch (error) {
             // ❌ Обработка ошибок
-            console.error("❌ ОШИБКА при расчете доставки:");
+            console.error("❌❌❌ КРИТИЧЕСКАЯ ОШИБКА ПРИ РАСЧЕТЕ ДОСТАВКИ ❌❌❌");
             console.error(`   Тип ошибки: ${error.name}`);
             console.error(`   Сообщение: ${error.message}`);
             console.error(`   Stack: ${error.stack}`);
+            console.error("❌❌❌ КОНЕЦ ОШИБКИ ❌❌❌");
+            
+            // Выводим алерт пользователю
+            tg.showAlert(`⚠️ Ошибка расчета доставки:\n\n${error.message}\n\nПопробуй еще раз или выбери другой адрес.`);
             
             // Используем стандартную стоимость
             currentShippingCost = 500;

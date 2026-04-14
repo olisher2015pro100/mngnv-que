@@ -35,6 +35,7 @@ print(f"🔗 Прокси: {PROXY_URL}")
 try:
     from fastapi import FastAPI, Request
     from fastapi.responses import JSONResponse
+    from fastapi.middleware.cors import CORSMiddleware
     import uvicorn
     FASTAPI_AVAILABLE = True
     print("✅ FastAPI импортирован успешно")
@@ -262,6 +263,19 @@ def format_admin_notification(order_data: Dict, user: types.User) -> str:
 
 app = FastAPI(title="mngnv Bot API")
 
+# ================================================
+# CORS - РАЗРЕШЕНИЕ ЗАПРОСОВ С ДРУГИХ ДОМЕНОВ
+# ================================================
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Разрешить все домены
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+print("✅ CORS настроен для запросов со всех доменов")
+
 @app.post("/api/calculate-shipping")
 async def calculate_shipping_endpoint(request: Request) -> Dict:
     """
@@ -282,19 +296,19 @@ async def calculate_shipping_endpoint(request: Request) -> Dict:
         }
     """
     
-    print("\n" + "="*60)
-    print("📍 ЭНДПОИНТ /api/calculate-shipping")
-    print("="*60)
+    print("\n" + "="*70)
+    print("🔴🔴🔴 ПРИШЕЛ ЗАПРОС НА /api/calculate-shipping 🔴🔴🔴")
+    print("="*70)
     print(f"🔑 CDEK Client ID: {CDEK_CLIENT_ID[:10]}..." if CDEK_CLIENT_ID else "❌ CDEK Client ID не установлен")
     print(f"🔐 CDEK Client Secret: {'✅ Установлен' if CDEK_CLIENT_SECRET else '❌ Не установлен'}")
-    print("="*60)
+    print("="*70)
     
     try:
         data = await request.json()
         city = data.get('city', '').strip()
         
-        print(f"📥 Получены данные: {data}")
-        print(f"🏙️ Город из запроса: '{city}'")
+        print(f"\n📥 Полные данные запроса: {data}")
+        print(f"🏙️ Город из запроса: city='{city}'")
         
         if not city:
             print("⚠️ ОШИБКА: Пустое имя города!")

@@ -100,8 +100,11 @@ async def get_cdek_oauth_token() -> Optional[str]:
                     return token
                 else:
                     error_text = await resp.text()
+                    print(f"\n🔴🔴🔴 ОШИБКА CDEK API - ТОКЕН 🔴🔴🔴")
+                    print(f"HTTP Статус: {resp.status}")
+                    print(f"Полный ответ от CDEK: {error_text}")
+                    print(f"🔴🔴🔴 КОНЕЦ ОШИБКИ 🔴🔴🔴\n")
                     logger.error(f"❌ Ошибка получения токена CDEK (статус {resp.status}): {error_text}")
-                    print(f"❌ Ошибка получения токена: статус {resp.status}")
                     return None
                     
     except asyncio.TimeoutError:
@@ -286,23 +289,33 @@ async def calculate_shipping(city_name: str) -> Tuple[int, str]:
                         return delivery_cost, f"Доставка: {tariff_name}"
                     else:
                         logger.warning(f"⚠️ Нет доступных тарифов для '{city_name}'")
+                        print(f"\n🔴 Нет тарифов в ответе CDEK для города '{city_name}'")
                         return 500, "Доставка (тариф недоступен, дефолтная стоимость)"
                 else:
                     error_text = await resp.text()
+                    print(f"\n🔴🔴🔴 ОШИБКА CDEK API - ТАРИФ 🔴🔴🔴")
+                    print(f"HTTP Статус: {resp.status}")
+                    print(f"Город запроса: '{city_name}'")
+                    print(f"Полный ответ от CDEK: {error_text}")
+                    print(f"🔴🔴🔴 КОНЕЦ ОШИБКИ 🔴🔴🔴\n")
                     logger.error(f"❌ Ошибка расчета доставки CDEK (статус {resp.status}): {error_text}")
                     return 500, "Доставка (сумма по умолчанию)"
                     
     except asyncio.TimeoutError:
-        logger.error(f"⏱️ Timeout при расчете доставки в '{city_name}'")
+        logger.error(f"⏱️ Timeout при расчете доставки в '{city_name}' (прокси)")
+        print(f"\n🔴 TIMEOUT: Не удалось подключиться к CDEK для расчета доставки в '{city_name}'\n")
         return 500, "Доставка (timeout, дефолтная стоимость)"
     except aiohttp.ClientError as e:
-        logger.error(f"🌐 Ошибка сетевого соединения при расчете доставки: {e}")
+        logger.error(f"🌐 Ошибка сетевого соединения при расчете доставки (прокси): {e}")
+        print(f"\n🔴 ОШИБКА СЕТИ: {e}\n")
         return 500, "Доставка (ошибка сети, дефолтная стоимость)"
     except KeyError as e:
         logger.error(f"🔑 Ошибка парсинга ответа CDEK: {e}")
+        print(f"\n🔴 ОШИБКА ПАРСИНГА: {e}\n")
         return 500, "Доставка (ошибка парсинга, дефолтная стоимость)"
     except Exception as e:
         logger.error(f"💥 Неожиданная ошибка при расчете доставки: {e}")
+        print(f"\n🔴 НЕОЖИДАННАЯ ОШИБКА: {e}\n")
         return 500, "Доставка (неизвестная ошибка, дефолтная стоимость)"
 
 

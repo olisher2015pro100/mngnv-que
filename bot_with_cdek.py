@@ -12,19 +12,39 @@ import logging
 from typing import Dict, Optional
 from dotenv import load_dotenv
 
-# ====== AIOGRAM ======
-from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
+# ====== БАЗОВЫЙ ИМПОРТ ======
 import asyncio
 
-# ====== FASTAPI ======
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-import uvicorn
+# ====== AIOGRAM (С ПРОВЕРКОЙ) ======
+try:
+    from aiogram import Bot, Dispatcher, types
+    from aiogram.filters import Command
+    from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
+    AIOGRAM_AVAILABLE = True
+    print("✅ aiogram импортирован успешно")
+except ImportError as e:
+    print(f"❌ Ошибка импорта aiogram: {e}")
+    AIOGRAM_AVAILABLE = False
 
-# ====== CDEK ======
-from cdek_integration import calculate_shipping, validate_phone, get_cdek_oauth_token
+# ====== FASTAPI (С ПРОВЕРКОЙ) ======
+try:
+    from fastapi import FastAPI, Request
+    from fastapi.responses import JSONResponse
+    import uvicorn
+    FASTAPI_AVAILABLE = True
+    print("✅ FastAPI импортирован успешно")
+except ImportError as e:
+    print(f"❌ Ошибка импорта FastAPI: {e}")
+    FASTAPI_AVAILABLE = False
+
+# ====== CDEK (С ПРОВЕРКОЙ) ======
+try:
+    from cdek_integration import calculate_shipping, validate_phone, get_cdek_oauth_token
+    CDEK_AVAILABLE = True
+    print("✅ cdek_integration импортирован успешно")
+except ImportError as e:
+    print(f"❌ Ошибка импорта cdek_integration: {e}")
+    CDEK_AVAILABLE = False
 
 # ====== КОНФИГУРАЦИЯ ======
 load_dotenv()
@@ -35,6 +55,13 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+print("=" * 60)
+print("🔍 ДИАГНОСТИКА ИМПОРТОВ:")
+print(f"   aiogram: {'✅' if AIOGRAM_AVAILABLE else '❌'}")
+print(f"   FastAPI: {'✅' if FASTAPI_AVAILABLE else '❌'}")
+print(f"   cdek_integration: {'✅' if CDEK_AVAILABLE else '❌'}")
+print("=" * 60)
 
 # Telegram Bot
 BOT_TOKEN = os.getenv('BOT_TOKEN', '8515886958:AAHWLWjmGtFj9BsUleOSsqZCaoN7NxdBHf4')
@@ -51,10 +78,17 @@ CDEK_CLIENT_SECRET = os.getenv('CDEK_CLIENT_SECRET', '')
 # ================================================
 # ⚠️ ИНИЦИАЛИЗАЦИЯ CDEK ПЕРЕМЕННЫХ
 # ================================================
-# Импортируем модуль CDEK и устанавливаем ключи
-import cdek_integration
-cdek_integration.CDEK_CLIENT_ID = CDEK_CLIENT_ID
-cdek_integration.CDEK_CLIENT_SECRET = CDEK_CLIENT_SECRET
+if CDEK_AVAILABLE:
+    try:
+        import cdek_integration
+        cdek_integration.CDEK_CLIENT_ID = CDEK_CLIENT_ID
+        cdek_integration.CDEK_CLIENT_SECRET = CDEK_CLIENT_SECRET
+        print(f"✅ CDEK ключи установлены: {CDEK_CLIENT_ID[:20]}..." if CDEK_CLIENT_ID else "⚠️ CDEK_CLIENT_ID не установлен")
+    except Exception as e:
+        print(f"❌ Ошибка инициализации CDEK: {e}")
+        CDEK_AVAILABLE = False
+else:
+    print("⚠️ cdek_integration не найден, доставка будет 500₽ по умолчанию")
 
 if not CDEK_CLIENT_ID or not CDEK_CLIENT_SECRET:
     logger.warning("⚠️ CDEK_CLIENT_ID или CDEK_CLIENT_SECRET не установлены!")
@@ -64,8 +98,14 @@ if not CDEK_CLIENT_ID or not CDEK_CLIENT_SECRET:
 # AIOGRAM BOT
 # ================================================
 
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
+if AIOGRAM_AVAILABLE:
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher()
+    print(f"✅ Telegram Bot инициализирован: {BOT_TOKEN[:20]}...")
+else:
+    bot = None
+    dp = None
+    print("❌ Telegram Bot не может быть инициализирован (aiogram недоступен)")
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -202,6 +242,8 @@ async def calculate_shipping_endpoint(request: Request) -> Dict:
     """
     POST /api/calculate-shipping
     
+    Принимает город из DaData и возвращает цену доставки от СДЭК
+    
     Body:
         {
             "city": "Москва"
@@ -215,15 +257,19 @@ async def calculate_shipping_endpoint(request: Request) -> Dict:
         }
     """
     
+    print("\n" + "="*60)
+    print("📍 ЭНДПОИНТ /api/calculate-shipping")
+    print("="*60)
+    
     try:
         data = await request.json()
         city = data.get('city', '').strip()
         
-        print(f"📍 Запрос на расчет для города: {city}")
-        logger.info(f"📍 Запрос на расчет для города: {city}")
+        print(f"📥 Получены данные: {data}")
+        print(f"🏙️ Город из запроса: '{city}'")
         
         if not city:
-            print("⚠️ Пустое имя города в запросе доставки")
+            print("⚠️ ОШИБКА: Пустое имя города!")
             logger.warning("⚠️ Пустое имя города в запросе доставки")
             return {
                 "cost": 500,
@@ -231,13 +277,25 @@ async def calculate_shipping_endpoint(request: Request) -> Dict:
                 "city": ""
             }
         
-        print(f"📍 Расчет доставки для города: {city}")
+        print(f"✅ Город валидный, начинаю расчет...")
         logger.info(f"📍 Расчет доставки для города: {city}")
         
+        # Проверяем, доступна ли функция расчета
+        if not CDEK_AVAILABLE:
+            print("⚠️ CDEK недоступен, использую значение по умолчанию: 500₽")
+            return {
+                "cost": 500,
+                "description": "⚠️ Стандартная доставка (CDEK недоступен)",
+                "city": city
+            }
+        
         # Вызываем асинхронную функцию из cdek_integration
+        print(f"🔄 Вызываю calculate_shipping('{city}')...")
         cost, description = await calculate_shipping(city)
         
-        print(f"✅ Результат: стоимость={cost}, описание={description}")
+        print(f"✅ ОТВЕТ ОТ СДЭК:")
+        print(f"   Стоимость: {cost} ₽")
+        print(f"   Описание: {description}")
         logger.info(f"✅ Результат: стоимость={cost}, описание={description}")
         
         response_data = {
@@ -247,21 +305,26 @@ async def calculate_shipping_endpoint(request: Request) -> Dict:
         }
         
         print(f"📤 Отправляю ответ: {response_data}")
-        logger.info(f"📤 Отправляю ответ: {response_data}")
+        print("="*60 + "\n")
         
         return response_data
         
     except json.JSONDecodeError as e:
-        print(f"❌ Ошибка парсинга JSON в запросе доставки: {e}")
+        print(f"❌ ОШИБКА: Некорректный JSON в запросе")
+        print(f"   Ошибка: {e}")
         logger.error(f"❌ Ошибка парсинга JSON в запросе доставки: {e}")
+        print("="*60 + "\n")
         return {
             "cost": 500,
             "description": "Ошибка: некорректный JSON",
             "city": ""
         }
     except Exception as e:
-        print(f"💥 Ошибка в endpoint доставки: {e}")
+        print(f"❌ КРИТИЧЕСКАЯ ОШИБКА в эндпоинте:")
+        print(f"   Тип: {type(e).__name__}")
+        print(f"   Сообщение: {str(e)}")
         logger.error(f"💥 Ошибка в endpoint доставки: {e}")
+        print("="*60 + "\n")
         return {
             "cost": 500,
             "description": f"Ошибка сервера: {str(e)[:50]}",
@@ -299,15 +362,44 @@ async def root():
 
 async def run_bot():
     """Запуск бота в фоне"""
+    if not AIOGRAM_AVAILABLE or bot is None or dp is None:
+        print("❌ Telegram бот недоступен (aiogram не установлен)")
+        logger.error("❌ Telegram бот недоступен (aiogram не установлен)")
+        return
+    
     logger.info("🤖 Запускаю Telegram бота...")
+    print("🤖 Запускаю Telegram бота...")
     try:
         await dp.start_polling(bot)
     except Exception as e:
         logger.error(f"❌ Ошибка в боте: {e}")
+        print(f"❌ Ошибка в боте: {e}")
 
 
 def main():
     """Главная точка входа"""
+    
+    print("\n" + "=" * 70)
+    print("🚀 ЗАПУСК mngnv SHOP BOT")
+    print("=" * 70)
+    
+    print("\n📋 КОНФИГУРАЦИЯ:")
+    print(f"   Bot Token: {BOT_TOKEN[:20]}..." if BOT_TOKEN else "   Bot Token: ❌ НЕ УСТАНОВЛЕН")
+    print(f"   CDEK Client: {'✅' if CDEK_CLIENT_ID else '❌'} Установлен")
+    print(f"   Mini App URL: {MINI_APP_URL}")
+    
+    print("\n🔍 СТАТУС КОМПОНЕНТОВ:")
+    print(f"   aiogram: {'✅ Готов' if AIOGRAM_AVAILABLE else '❌ Недоступен'}")
+    print(f"   FastAPI: {'✅ Готов' if FASTAPI_AVAILABLE else '❌ Недоступен'}")
+    print(f"   CDEK: {'✅ Готов' if CDEK_AVAILABLE else '❌ Недоступен (будет 500₽ по умолчанию)'}")
+    
+    print("\n📱 API ЭНДПОИНТЫ:")
+    print("   POST /api/calculate-shipping - расчет доставки")
+    print("   GET  /api/health             - проверка здоровья")
+    print("   GET  /                       - информация об API")
+    
+    print("\n" + "=" * 70)
+    print("⏳ Запуск сервера...\n")
     
     logger.info("=" * 60)
     logger.info("🚀 ЗАПУСК mngnv SHOP BOT")
@@ -316,6 +408,12 @@ def main():
     logger.info(f"CDEK Client: {'✅' if CDEK_CLIENT_ID else '❌'} Установлен")
     logger.info(f"Mini App URL: {MINI_APP_URL}")
     logger.info("=" * 60)
+    
+    # Проверяем доступность FastAPI перед запуском
+    if not FASTAPI_AVAILABLE:
+        print("❌ FastAPI не установлен! Установите: pip install fastapi uvicorn")
+        logger.error("❌ FastAPI не установлен!")
+        return
     
     # Параметры запуска FastAPI сервера
     uvicorn_config = uvicorn.Config(
@@ -331,12 +429,24 @@ def main():
     loop = asyncio.get_event_loop()
     
     try:
-        loop.run_until_complete(asyncio.gather(
-            server.serve(),
-            run_bot()
-        ))
+        if AIOGRAM_AVAILABLE:
+            # Запускаем и FastAPI сервер, и Telegram бота
+            print("🔄 Запускаю FastAPI и Telegram бота в asyncio...")
+            loop.run_until_complete(asyncio.gather(
+                server.serve(),
+                run_bot()
+            ))
+        else:
+            # Запускаем только FastAPI
+            print("⚠️ Telegram бот недоступен (aiogram не установлен)")
+            print("🔄 Запускаю только FastAPI сервер...")
+            loop.run_until_complete(server.serve())
     except KeyboardInterrupt:
+        print("\n⏹️ Завершение работы...")
         logger.info("⏹️ Завершение работы...")
+    except Exception as e:
+        print(f"\n❌ Критическая ошибка: {e}")
+        logger.error(f"❌ Критическая ошибка: {e}")
 
 
 if __name__ == "__main__":

@@ -254,17 +254,17 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
                 <span style="font-size: 12px; color: #666;">Нужен для звонка курьера</span>
             </div>
 
-            <!-- ВЫБОР ГОРОДА С ПОДСКАЗКАМИ -->
+            <!-- ВЫБОР ГОРОДА И АДРЕСА - ОБЪЕДИНЕННОЕ ПОЛЕ -->
             <div class="form-group">
-                <label style="display: block; margin-bottom: 8px; font-size: 12px; color: #888; text-transform: uppercase; font-weight: 800;">Город доставки (СДЭК)</label>
+                <label style="display: block; margin-bottom: 8px; font-size: 12px; color: #888; text-transform: uppercase; font-weight: 800;">Город и адрес доставки</label>
                 <input 
                     type="text" 
-                    id="city-input" 
-                    placeholder="Начни вводить город (напр. Москва)..." 
-                    maxlength="50"
+                    id="full-address" 
+                    placeholder="Начни вводить город и адрес (напр. Москва, Арбат)..." 
+                    maxlength="300"
                     autocomplete="off"
                 >
-                <div class="city-suggestions" id="city-suggestions"></div>
+                <span style="font-size: 12px; color: #666;">DaData подскажет город и адрес</span>
             </div>
 
             <!-- ИНФО ПО ДОСТАВКЕ -->
@@ -276,13 +276,15 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
                 </div>
             </div>
 
+            <!-- ПОЛЕ ДЛЯ ИНДЕКСА -->
             <div class="form-group">
-                <input type="text" id="address" placeholder="Адрес / ПВЗ СДЭК или Почты России" maxlength="200">
+                <input type="text" id="postal-code" placeholder="Почтовый индекс" maxlength="6" inputmode="numeric">
+                <span style="font-size: 12px; color: #666;">Заполнится автоматически из адреса</span>
             </div>
 
-            <div class="form-group">
-                <input type="text" id="post_index" placeholder="Почтовый индекс" maxlength="6" inputmode="numeric">
-            </div>
+            <!-- СКРЫТЫЕ ПЕРЕМЕННЫЕ ДЛЯ СОХРАНЕНИЯ ДАННЫХ -->
+            <input type="hidden" id="selected-city" value="">
+            <input type="hidden" id="selected-address-full" value="">
 
             <div class="form-group">
                 <input type="email" id="email" placeholder="Email (опционально)" maxlength="100">
@@ -308,6 +310,8 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
     let currentProductKey = 'hoodie';
     let currentShippingCost = 500;
     let selectedCity = "";
+    let selectedPostalCode = "";
+    let selectedAddressFull = "";
 
     const products = {
         hoodie: {
@@ -358,21 +362,50 @@ black/white
         // Слушаем ввод телефона
         document.getElementById('phone').addEventListener('input', formatPhone);
         
-        // 🏙️ ИНИЦИАЛИЗАЦИЯ DaData SUGGESTIONS
-        $("#city-input").suggestions({
+        // 📍 ИНИЦИАЛИЗАЦИЯ DaData SUGGESTIONS ДЛЯ ПОЛНОГО АДРЕСА
+        $("#full-address").suggestions({
             token: "1ed0eebc35156fe4fe197c5dd676354f40bfd073",
             type: "ADDRESS",
-            bounds: "city-settlement",
-            minChars: 1,
+            minChars: 2,
             onSelect: function(suggestion) {
-                if (suggestion.data.city) {
-                    selectCity(suggestion.data.city);
-                } else {
-                    console.warn("⚠️ Город не найден в предложении", suggestion);
+                console.log("🏠 Выбран адрес полностью:", suggestion);
+                
+                // Извлекаем нужные данные
+                const address = suggestion.value; // Полный адрес
+                const city = suggestion.data.city || suggestion.data.settlement || ""; // Город
+                const postalCode = suggestion.data.postal_code || ""; // Индекс
+                
+                console.log(`🏙️ Город: '${city}'`);
+                console.log(`📍 Адрес: ${address}`);
+                console.log(`📮 Индекс: ${postalCode}`);
+                
+                // Сохраняем данные в переменные
+                selectedCity = city;
+                selectedAddressFull = address;
+                selectedPostalCode = postalCode;
+                
+                // Заполняем скрытые поля
+                document.getElementById('selected-city').value = city;
+                document.getElementById('selected-address-full').value = address;
+                
+                // Заполняем поле индекса
+                if (postalCode) {
+                    document.getElementById('postal-code').value = postalCode;
+                    console.log(`✅ Индекс вписан в поле: ${postalCode}`);
                 }
+                
+                // Запускаем расчет доставки по выбранному городу
+                if (city) {
+                    console.log(`🚀 Запускаю расчет доставки для города: ${city}`);
+                    selectCity(city);
+                } else {
+                    console.warn("⚠️ Город не найден в адресе");
+                }
+                
+                console.log(`✅ Адрес, город и индекс сохранены`);
             },
             onError: function(error) {
-                console.error("❌ Ошибка DaData:", error);
+                console.error("❌ Ошибка DaData для адреса:", error);
             }
         });
     });
@@ -413,10 +446,7 @@ black/white
         // Устанавливаем выбранный город
         selectedCity = cityName || "";
         
-        console.log(`🏙️ Выбран город: ${cityName}`);
-        
-        // Обновляем значение в инпуте
-        document.getElementById('city-input').value = cityName;
+        console.log(`🏙️ Выбран город для расчета: ${cityName}`);
         
         // Показываем блок с информацией о доставке
         const shippingInfo = document.getElementById('shipping-info');
@@ -429,13 +459,13 @@ black/white
         }
         
         shippingInfo.style.display = 'block';
-        statusDiv.innerHTML = '<span class="spinner"></span>Рассчитываю доставку...';
+        statusDiv.innerHTML = '<span class="spinner"></span>Рассчитываю доставку СДЭК...';
         statusDiv.className = 'shipping-status loading';
         
         try {
             // ✅ ОТПРАВЛЯЕМ POST-ЗАПРОС НА BACKEND
             console.log("📤 Отправляю запрос на: https://olisher2015pro100.pythonanywhere.com/api/calculate-shipping");
-            console.log(`📍 Город: ${cityName}`);
+            console.log(`📍 Параметры: city="${cityName}"`);
             
             const response = await fetch('https://olisher2015pro100.pythonanywhere.com/api/calculate-shipping', {
                 method: 'POST',
@@ -446,7 +476,7 @@ black/white
                 body: JSON.stringify({ city: cityName })
             });
             
-            console.log(`📥 Статус ответа: ${response.status}`);
+            console.log(`📥 Статус ответа HTTP: ${response.status}`);
             
             // Проверяем статус ответа
             if (!response.ok) {
@@ -459,6 +489,12 @@ black/white
             
             // Извлекаем стоимость доставки
             currentShippingCost = parseInt(data.cost) || 500;
+            
+            // ВАЖНО: Если цена 500р, выводим причину ошибки
+            if (currentShippingCost === 500 && data.description) {
+                console.warn(`⚠️ СТОИМОСТЬ ДОСТАВКИ = 500₽`);
+                console.warn(`   Возможная причина: ${data.description}`);
+            }
             
             // ✅ ОБНОВЛЯЕМ UI С РЕЗУЛЬТАТОМ
             costDiv.textContent = `${currentShippingCost} ₽`;
@@ -477,7 +513,7 @@ black/white
             // Используем стандартную стоимость
             currentShippingCost = 500;
             costDiv.textContent = `${currentShippingCost} ₽ (по умолчанию)`;
-            statusDiv.innerHTML = '⚠️ Используется стандартная стоимость';
+            statusDiv.innerHTML = `⚠️ Ошибка подключения - используется стандартная стоимость`;
             statusDiv.className = 'shipping-status error';
         }
         
@@ -545,12 +581,13 @@ black/white
     // ✅ ОТПРАВКА ЗАКАЗА
     function sendOrder() {
         const fio = document.getElementById('fio').value.trim();
-        const city = document.getElementById('city-input').value.trim();
+        const city = document.getElementById('selected-city').value.trim() || selectedCity;
         const phone = document.getElementById('phone').value.trim();
         const email = document.getElementById('email').value.trim();
         const tg_c = document.getElementById('tg_contact').value.trim();
-        const address = document.getElementById('address').value.trim();
-        const post_index = document.getElementById('post_index').value.trim();
+        const address = document.getElementById('full-address').value.trim();
+        const postal_code = document.getElementById('postal-code').value.trim() || selectedPostalCode;
+        const addressFull = document.getElementById('selected-address-full').value.trim() || selectedAddressFull;
 
         // ✓ ВАЛИДАЦИЯ
         if (!selectedSize) {
@@ -570,7 +607,7 @@ black/white
             return;
         }
         if (!address) {
-            tg.showAlert("🚫 Укажи адрес или ПВЗ!");
+            tg.showAlert("🚫 Укажи адрес доставки!");
             return;
         }
         if (!tg_c) {
@@ -590,7 +627,8 @@ black/white
             phone: phone,
             email: email,
             address: address,
-            index: post_index,
+            address_full: addressFull,
+            postal_code: postal_code,
             tg_user: tg_c
         };
 

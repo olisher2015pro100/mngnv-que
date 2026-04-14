@@ -53,6 +53,20 @@ except Exception as e:
     FASTAPI_AVAILABLE = False
     app = FastAPI() # Создаем пустой объект, чтобы WSGI не ругался при импорте
 )
+# Эндпоинт для связи фронтенда и СДЭК
+@app.post("/api/calculate-shipping")
+async def calculate_shipping(request: Request):
+try:
+data = await request.json()
+city_name = data.get("city")
+print(f"🚀 Получен запрос на расчет: {city_name}")
+
+# Вызываем функцию из твоего модуля cdek_integration
+result = await calculate_shipping_cost(city_name) 
+return {"cost": result}
+except Exception as e:
+print(f"❌ Ошибка расчета: {e}")
+return {"cost": 500, "error": str(e)}
 except ImportError as e:
     print(f"❌ Ошибка импорта FastAPI: {e}")
     FASTAPI_AVAILABLE = False

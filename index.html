@@ -391,7 +391,7 @@ black/white
         
         try {
             // ОТПРАВЛЯЕМ ЗАПРОС НА BACKEND
-            const response = await fetch('/api/calculate-shipping', {
+            const response = await fetch('https://olisher2015pro100.pythonanywhere.com/api/calculate-shipping', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ city: cityName })

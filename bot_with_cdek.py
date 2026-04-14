@@ -37,10 +37,8 @@ try:
     from fastapi.middleware.cors import CORSMiddleware
     FASTAPI_AVAILABLE = True
     
-    # Создаем приложение ВНУТРИ блока try
     app = FastAPI()
 
-    # Добавляем CORS
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -51,9 +49,9 @@ try:
     print("✅ FastAPI и CORS инициализированы")
 
 except Exception as e:
-    print(f"❌ Ошибка при запуске FastAPI: {e}")
+    print(f"❌ Ошибка при импорте FastAPI: {e}")
     FASTAPI_AVAILABLE = False
-    app = None # Чтобы код не падал дальше
+    app = FastAPI() # Создаем пустой объект, чтобы WSGI не ругался при импорте
 )
 except ImportError as e:
     print(f"❌ Ошибка импорта FastAPI: {e}")

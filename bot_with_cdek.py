@@ -52,7 +52,7 @@ except Exception as e:
     print(f"❌ Ошибка при импорте FastAPI: {e}")
     FASTAPI_AVAILABLE = False
     app = FastAPI() # Создаем пустой объект, чтобы WSGI не ругался при импорте
-)
+
 # Эндпоинт для связи фронтенда и СДЭК
 @app.post("/api/calculate-shipping")
 async def calculate_shipping(request: Request):

@@ -1,3 +1,8 @@
+"""
+🤖 TELEGRAM BOT ДЛЯ ИНТЕРНЕТ-МАГАЗИНА
+Обработка заказов с интеграцией CDEK API v2.0
+"""
+
 import os
 import json
 import asyncio
@@ -9,88 +14,134 @@ from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, WebAppInfo
 from aiogram.client.session.aiohttp import AiohttpSession
 
-# 1. НАСТРОЙКИ
-PROXY_URL = "http://proxy.server:3128"
-BOT_TOKEN = '8515886958:AAHWLWjmGtFj9BsUleOSsqZCaoN7NxdBHf4'
+# ==========================================
+# 1️⃣ КОНФИГУРАЦИЯ
+# ==========================================
+
+# 🔧 ИСПОЛЬЗОВАТЬ ПРОКСИ? (для локального тестирования = False)
+USE_PROXY = False
+PROXY_URL = None if not USE_PROXY else os.getenv("PROXY_URL", "http://proxy.server:3128")
+
+if PROXY_URL:
+    print(f"✅ Прокси включен: {PROXY_URL}")
+else:
+    print("✅ Прокси ОТКЛЮЧЕН (прямое подключение)")
+
+BOT_TOKEN = '8515886958:AAHoWf1mbESKzB03Vd6Aw3oGZrUY3SVb6dA'
 MINI_APP_URL = 'https://olisher2015pro100.github.io/mngnv-que/'
 ADMIN_ID = 1018181608
 
 # ПУТЬ К БД
 DB_PATH = os.path.join(os.path.dirname(__file__), 'orders.db')
 
-# 2. ИНИЦИАЛИЗАЦИЯ (сначала создаем объекты, потом используем!)
-session = AiohttpSession(proxy=PROXY_URL)
+# Логирование
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# 2. ИНИЦИАЛИЗАЦИЯ
+session = AiohttpSession(proxy=PROXY_URL) if PROXY_URL else AiohttpSession()
 bot = Bot(token=BOT_TOKEN, session=session)
 dp = Dispatcher()
 
-# 3. ФУНКЦИИ ДЛЯ РАБОТЫ С БД
+# ==========================================
+# 2️⃣ ФУНКЦИИ ДЛЯ РАБОТЫ С БД
+# ==========================================
+
 def init_db():
-    """Инициализирует БД и создает таблицу, если её нет"""
+    """Инициализирует БД с полной схемой и миграцией"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    
+    # Создаем таблицу с полной структурой
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS orders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             fio TEXT,
-            phone TEXT,
             email TEXT,
+            phone TEXT,
+            username TEXT,
             address TEXT,
-            idx TEXT,
+            postal_code TEXT,
+            city TEXT,
             item TEXT,
             size TEXT,
+            price INTEGER,
+            shipping_cost INTEGER,
             total INTEGER,
-            tg_user TEXT,
             chat_id TEXT,
             date TEXT
         )
     ''')
     conn.commit()
     
-    # 🔧 МИГРАЦИЯ: Добавляем колонку idx если её нет (для старых БД)
-    try:
-        cursor.execute("ALTER TABLE orders ADD COLUMN idx TEXT DEFAULT '—'")
-        conn.commit()
-        print("✅ Колонка 'idx' добавлена в таблицу orders")
-    except sqlite3.OperationalError as e:
-        if "duplicate column name" in str(e):
-            # Колонка уже существует - это нормально
-            pass
-        else:
-            print(f"⚠️ Ошибка при добавлении колонки: {e}")
+    # 🔧 АВТОМАТИЧЕСКАЯ МИГРАЦИЯ: Добавляем новые колонки если их нет
+    migration_columns = [
+        ('email', 'TEXT'),
+        ('postal_code', 'TEXT'),
+        ('username', 'TEXT'),
+        ('city', 'TEXT'),
+        ('price', 'INTEGER'),
+        ('shipping_cost', 'INTEGER'),
+        ('size', 'TEXT'),
+        ('address', 'TEXT'),
+        ('total', 'INTEGER'),
+        ('chat_id', 'TEXT'),
+        ('date', 'TEXT')
+    ]
+    
+    for col_name, col_type in migration_columns:
+        try:
+            cursor.execute(f"ALTER TABLE orders ADD COLUMN {col_name} {col_type}")
+            conn.commit()
+            print(f"✅ Колонка '{col_name}' добавлена в БД")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" in str(e):
+                pass  # Уже существует
+            else:
+                logger.warning(f"⚠️ {col_name}: {e}")
     
     conn.close()
+    print("✅ БД инициализирована с полной схемой")
 
-def save_order(fio, phone, email, address, idx, item, size, total, tg_user, chat_id):
-    """Сохраняет заказ в БД"""
+
+def save_order(fio, email, phone, username, address, postal_code, city, item, size, price, shipping_cost, total, chat_id):
+    """Сохраняет заказ в БД со всеми полями"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     date = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     try:
         cursor.execute('''
-            INSERT INTO orders (fio, phone, email, address, idx, item, size, total, tg_user, chat_id, date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (fio, phone, email, address, idx, item, size, total, tg_user, chat_id, date))
+            INSERT INTO orders 
+            (fio, email, phone, username, address, postal_code, city, item, size, price, shipping_cost, total, chat_id, date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (fio, email, phone, username, address, postal_code, city, item, size, price, shipping_cost, total, chat_id, date))
         conn.commit()
-        return cursor.lastrowid
+        order_id = cursor.lastrowid
+        logger.info(f"✅ Заказ #{order_id} сохранен в БД")
+        return order_id
     except Exception as e:
-        print(f"Ошибка при сохранении заказа: {e}")
+        logger.error(f"❌ Ошибка при сохранении: {e}")
         return None
     finally:
         conn.close()
+
 
 def get_all_orders():
     """Получает все заказы из БД"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     try:
-        cursor.execute('SELECT id, fio, phone, email, address, idx, item, size, total, tg_user, chat_id, date FROM orders ORDER BY id DESC')
-        orders = cursor.fetchall()
-        return orders
+        cursor.execute('''
+            SELECT id, fio, email, phone, username, address, postal_code, city, item, size, price, shipping_cost, total, chat_id, date 
+            FROM orders ORDER BY id DESC
+        ''')
+        return cursor.fetchall()
     except Exception as e:
-        print(f"Ошибка при получении заказов: {e}")
+        logger.error(f"❌ Ошибка при получении заказов: {e}")
         return []
     finally:
         conn.close()
+
 
 def delete_order(order_id):
     """Удаляет заказ по ID"""
@@ -99,252 +150,360 @@ def delete_order(order_id):
     try:
         cursor.execute('DELETE FROM orders WHERE id = ?', (order_id,))
         conn.commit()
-        return cursor.rowcount > 0
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(f"✅ Заказ #{order_id} удален")
+        return success
     except Exception as e:
-        print(f"Ошибка при удалении заказа: {e}")
+        logger.error(f"❌ Ошибка при удалении: {e}")
         return False
     finally:
         conn.close()
 
+
 def clear_all_orders():
-    """Полностью очищает таблицу заказов и сбрасывает счетчик ID"""
+    """Полностью очищает БД и сбрасывает счетчик ID до 1"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     try:
         cursor.execute('DELETE FROM orders')
-        # Сбрасываем счетчик ID, чтобы новые заказы начинались с 1
         cursor.execute("DELETE FROM sqlite_sequence WHERE name='orders'")
         conn.commit()
+        logger.info("✅ БД очищена, счетчик ID сброшен на 1")
         return True
     except Exception as e:
-        print(f"Ошибка при очистке таблицы: {e}")
+        logger.error(f"❌ Ошибка при очистке БД: {e}")
         return False
     finally:
         conn.close()
 
-# 4. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+
+# ==========================================
+# 3️⃣ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ==========================================
+
 def get_val(data, *keys):
+    """Получает значение из словаря по приоритету ключей"""
     for key in keys:
         val = data.get(key)
         if val and str(val).strip() and val != '—': 
-            return val
+            return str(val)
     return "—"
 
-def find_index(data):
-    # Пробуем все возможные ключи для индекса
-    keys = ['index', 'postcode', 'zip', 'zip_code', 'postal', 'postIndex', 'post_index', 'p_code']
-    for k in keys:
-        if data.get(k): return data.get(k)
-    # Если не нашли по ключу, ищем любое значение из 6 цифр
-    for v in data.values():
-        if str(v).isdigit() and len(str(v)) == 6: return v
-    return "—"
 
-# 5. ОБРАБОТЧИКИ
+def format_order_tree(order_id, fio, email, phone, username, address, postal_code, city, item, size, price, shipping_cost, total, date):
+    """Форматирует заказ в красивом древовидном формате"""
+    tree = (
+        f"<b>【 ЗАКАЗ #{order_id} 】</b>\n"
+        f"└ 📱 <b>Модель:</b> {item}\n"
+        f"└ 👤 <b>Клиент:</b> {fio}\n"
+        f"└ 📧 <b>Почта:</b> {email}\n"
+        f"└ 📞 <b>Тел:</b> {phone}\n"
+        f"└ 🔗 <b>Связь:</b> @{username.replace('@', '')}\n"
+        f"└ 📮 <b>Индекс:</b> {postal_code}\n"
+        f"└ 📍 <b>Город:</b> {city}\n"
+        f"└ 📏 <b>Размер:</b> {size}\n"
+        f"└ 💵 <b>Товар:</b> {price}₽\n"
+        f"└ 🚚 <b>Доставка:</b> {shipping_cost}₽\n"
+        f"└ 💰 <b>ИТОГО:</b> <code>{total}₽</code>\n"
+        f"└ 🕓 <b>Создано:</b> {date}\n"
+        f"═══════════════════════════════"
+    )
+    return tree
+
+
+# ==========================================
+# 4️⃣ КОМАНДЫ БОТА
+# ==========================================
+
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
+    """Команда /start - приветствие"""
     markup = ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="🛍️ открыть каталог 🛍️", web_app=WebAppInfo(url=MINI_APP_URL))]],
         resize_keyboard=True
     )
-    await message.answer("🔥 <b>Добро пожаловать в mngnv shop!</b>", parse_mode="HTML", reply_markup=markup)
+    await message.answer(
+        "🔥 <b>Добро пожаловать в mngnv shop!</b>\n\n"
+        "Выбери товар и оформи заказ через каталог 👇",
+        parse_mode="HTML", 
+        reply_markup=markup
+    )
+
 
 @dp.message(Command("cmd"))
 async def cmd_help(message: types.Message):
-    """Команда /cmd - справка для админа"""
+    """Команда /cmd - справка для администратора"""
     if message.from_user.id != ADMIN_ID:
-        await message.answer("❌ У тебя нет доступа к этой команде!")
+        await message.answer("❌ У тебя нет доступа!")
         return
     
     help_text = (
-        "🤖 <b>Панель управления менеджера:</b>\n\n"
-        "• /start — Перезапуск бота.\n"
-        "• /base — Показать все заказы из базы.\n"
-        "• /baseclear [номер] (например: /baseclear 2) — Удаление конкретного заказа.\n"
-        "• /baseclearall — Полная очистка базы (внимание!).\n"
-        "• /cmd — Вызов этого меню."
+        "🤖 <b>ПАНЕЛЬ АДМИНИСТРАТОРА:</b>\n\n"
+        "📋 <b>Просмотр заказов:</b>\n"
+        "• /base — Все заказы\n"
+        "• /base [число] — Последние N заказов (например: /base 5)\n\n"
+        "🗑️ <b>Управление:</b>\n"
+        "• /delete [номер] — Удалить заказ (например: /delete 3)\n"
+        "• /baseclearall — ПОЛНАЯ очистка БД (счетчик → 1)\n\n"
+        "ℹ️ /cmd — Это меню"
     )
     await message.answer(help_text, parse_mode="HTML")
 
+
 @dp.message(Command("base"))
 async def cmd_base(message: types.Message):
-    """Команда /base - выводит все заказы (только для админа)"""
+    """Команда /base - показывает все заказы"""
     if message.from_user.id != ADMIN_ID:
-        await message.answer("❌ У тебя нет доступа к этой команде!")
+        await message.answer("❌ Доступ запрещен!")
         return
     
+    # Параметр для количества последних заказов
+    args = message.text.split()
+    limit = int(args[1]) if len(args) > 1 else 0
+    
     orders = get_all_orders()
+    if limit > 0:
+        orders = orders[:limit]
+    
     if not orders:
         await message.answer("📦 Заказов в базе нет!")
         return
     
-    text = "📊 <b>ВСЕ ЗАКАЗЫ:</b>\n\n"
-    for idx, (order_id, fio, phone, email, address, postal_idx, item, size, total, tg_user, chat_id, date) in enumerate(orders, 1):
-        text += f"<b>{idx}. Заказ #{order_id}</b>\n"
-        text += f"└ 👤 ФИО: {fio}\n"
-        text += f"└ 📞 Тел: {phone}\n"
-        text += f"└ 📧 Почта: {email}\n"
-        text += f"└ 📍 Адрес: {address}\n"
-        text += f"└ 📮 Индекс: {postal_idx}\n"
-        text += f"└ 👕 Товар: {item}\n"
-        text += f"└ 📏 Размер: {size}\n"
-        text += f"└ 💰 Итого к оплате: {total}₽\n"
-        text += f"└ 🔗 Связь: @{tg_user.replace('@','')}\n"
-        text += f"└ 🆔 Chat ID: {chat_id}\n"
-        text += f"└ 🕓 Дата: {date}\n"
-        text += "════════════════════════════\n\n"
+    text = f"📊 <b>ЗАКАЗЫ ({len(orders)} шт):</b>\n\n"
     
-    await message.answer(text, parse_mode="HTML")
+    for order in orders:
+        (order_id, fio, email, phone, username, address, postal_code, city,
+         item, size, price, shipping_cost, total, chat_id, date) = order
+        
+        tree = format_order_tree(
+            order_id, fio, email, phone, username, 
+            address, postal_code, city, item, size,
+            price or 0, shipping_cost or 0, total, date
+        )
+        text += tree + "\n\n"
+    
+    # Если текст слишком большой, разбиваем на части
+    if len(text) > 4000:
+        messages = text.split("═══════════════════════════════\n\n")
+        for msg in messages:
+            if msg.strip():
+                try:
+                    await message.answer(msg[:4000], parse_mode="HTML")
+                    await asyncio.sleep(0.5)
+                except:
+                    pass
+    else:
+        await message.answer(text, parse_mode="HTML")
 
-@dp.message(Command("baseclear"))
-async def cmd_baseclear(message: types.Message):
-    """Команда /baseclear [номер] - удаляет заказ по ID"""
+
+@dp.message(Command("delete"))
+async def cmd_delete(message: types.Message):
+    """Команда /delete [номер] - удаляет заказ по ID"""
     if message.from_user.id != ADMIN_ID:
-        await message.answer("❌ У тебя нет доступа к этой команде!")
+        await message.answer("❌ Доступ запрещен!")
         return
     
-    # Получаем аргументы команды
     args = message.text.split()
-    
-    # Проверяем, передан ли номер заказа
     if len(args) < 2:
-        await message.answer("⚠️ Ошибка! Введи номер заказа, например: /baseclear 2")
+        await message.answer("❌ Формат: /delete [номер]\nПример: /delete 5")
         return
     
-    # Пытаемся получить ID из второго аргумента
     try:
         order_id = int(args[1])
+        if delete_order(order_id):
+            await message.answer(f"✅ Заказ #{order_id} удален!")
+        else:
+            await message.answer(f"❌ Заказ #{order_id} не найден!")
     except ValueError:
-        await message.answer("⚠️ Ошибка! Номер заказа должен быть числом, например: /baseclear 2")
-        return
-    
-    # Удаляем заказ
-    if delete_order(order_id):
-        await message.answer(f"✅ Заказ #{order_id} успешно удален!")
-    else:
-        await message.answer(f"❌ Заказ #{order_id} не найден!")
+        await message.answer("❌ Номер должен быть числом!")
+
 
 @dp.message(Command("baseclearall"))
 async def cmd_baseclearall(message: types.Message):
-    """Команда /baseclearall - полностью очищает таблицу"""
+    """Команда /baseclearall - ПОЛНАЯ очистка БД"""
     if message.from_user.id != ADMIN_ID:
-        await message.answer("❌ У тебя нет доступа к этой команде!")
+        await message.answer("❌ Доступ запрещен!")
         return
     
-    clear_all_orders()
-    await message.answer("✅ Таблица заказов полностью очищена!")
+    if clear_all_orders():
+        await message.answer("✅ БД полностью очищена!\nСчетчик ID сброшен на 1")
+    else:
+        await message.answer("❌ Ошибка при очистке БД!")
+
+
+# ==========================================
+# 5️⃣ ОБРАБОТЧИК СКРИНШОТОВ
+# ==========================================
 
 @dp.message(F.photo)
 async def handle_screenshot(message: types.Message):
-    """Обработчик для скриншотов оплаты от клиентов"""
+    """Обработчик скриншотов оплаты"""
     try:
-        # Получаем информацию о пользователе
         user_id = message.from_user.id
         username = message.from_user.username or "не указано"
-        
-        # Получаем самое качественное фото (последнее в списке)
         photo = message.photo[-1]
         
-        # Переслаем фото админу с сопроводительным текстом
-        caption = f"💰 Получен скриншот оплаты от пользователя @{username} (ID: {user_id})"
+        caption = f"💰 Скриншот оплаты от @{username} (ID: {user_id})"
         await bot.send_photo(ADMIN_ID, photo.file_id, caption=caption, parse_mode="HTML")
         
-        # Ответим пользователю подтверждением
-        await message.answer(
-            "✅ Скриншот получен! Менеджер проверит оплату в ближайшее время и свяжется с тобой."
-        )
-        
-        print(f"✅ Скриншот от пользователя @{username} (ID: {user_id}) переслан админу")
+        await message.answer("✅ Скриншот получен! Менеджер проверит и свяжется с тобой.")
+        logger.info(f"📸 Скриншот от @{username}")
         
     except Exception as e:
-        print(f"Ошибка при обработке скриншота: {e}")
-        await message.answer("❌ Ошибка при обработке скриншота. Попробуй еще раз.")
+        logger.error(f"❌ Ошибка скриншота: {e}")
+        await message.answer("❌ Ошибка обработки. Попробуй еще раз.")
+
+
+# ==========================================
+# 6️⃣ ОБРАБОТЧИК WEB APP (ГЛАВНЫЙ)
+# ==========================================
 
 @dp.message()
 async def handle_order(message: types.Message):
-    if message.web_app_data:
-        try:
-            d = json.loads(message.web_app_data.data)
-            
-            # ЛОГИ ДЛЯ ПРОВЕРКИ В БАШ
-            print("\n--- ПРИШЛИ ДАННЫЕ ---")
-            print(json.dumps(d, indent=2, ensure_ascii=False))
-            print("----------------------\n")
+    """Обработчик заказов из Web App"""
+    if not message.web_app_data:
+        return
+    
+    try:
+        data = json.loads(message.web_app_data.data)
+        
+        # ПОДРОБНЫЕ ЛОГИ
+        print("\n" + "="*80)
+        print("📥 ДАННЫЕ ИЗ WEB APP:")
+        print("="*80)
+        print(json.dumps(data, indent=2, ensure_ascii=False))
+        print("="*80 + "\n")
+        
+        # Извлекаем данные с fallback на разные ключи
+        fio = get_val(data, 'customer', 'fio', 'name', 'full_name')
+        email = get_val(data, 'email', 'mail', 'user_email')
+        phone = get_val(data, 'phone', 'tel')
+        username = get_val(data, 'tg_user', 'username', 'tg')
+        address = get_val(data, 'address', 'addr')
+        postal_code = get_val(data, 'postal_code', 'index', 'idx')
+        item = get_val(data, 'item', 'product', 'title')
+        size = get_val(data, 'size', 'variant')
+        price = int(data.get('price', 0))
+        
+        # Получаем город для расчета доставки
+        city = get_val(data, 'shipping_city', 'city')
+        print(f"🏙️ Город заказа: '{city}'")
+        
+        # 🚚 РАССЧИТЫВАЕМ ДОСТАВКУ СДЭК
+        shipping_cost = 500  # Дефолт
+        
+        if city and city != "—":
+            try:
+                from cdek_integration import calculate_shipping
+                
+                print("\n" + "="*80)
+                print("🚚 РАСЧЕТ ДОСТАВКИ СДЭК")
+                print("="*80)
+                print(f"   🏙️  Город: '{city}'")
+                print(f"   📞 Вызов: calculate_shipping()")
+                
+                shipping_cost, ship_desc = await calculate_shipping(city)
+                
+                print(f"   ✅ РЕЗУЛЬТАТ: {shipping_cost}₽")
+                print(f"   📝 Описание: {ship_desc}")
+                print("="*80 + "\n")
+                
+            except Exception as e:
+                logger.error(f"⚠️ ОШИБКА СДЭК: {e}")
+                print(f"⚠️ Ошибка при расчете, используем дефолт 500₽\n")
+                shipping_cost = 500
+        
+        total = price + shipping_cost
+        
+        # СОХРАНЯЕМ ЗАКАЗ В БД
+        chat_id = str(message.from_user.id)
+        order_id = save_order(
+            fio, email, phone, username, address, postal_code, city,
+            item, size, price, shipping_cost, total, chat_id
+        )
+        
+        if not order_id:
+            await message.answer("❌ Ошибка при сохранении. Попробуй позже.")
+            return
+        
+        # ЧЕК ДЛЯ КЛИЕНТА в формате "дерева"
+        receipt = (
+            f"✅ <b>Заказ принят!</b>\n\n"
+            f"<b>【 ЗАКАЗ #{order_id} 】</b>\n"
+            f"└ 📱 <b>Модель:</b> {item}\n"
+            f"└ 📏 <b>Размер:</b> {size}\n"
+            f"└ 💵 <b>Товар:</b> {price}₽\n"
+            f"└ 🚚 <b>Доставка:</b> {shipping_cost}₽\n"
+            f"└ 💰 <b>ИТОГО:</b> <code>{total}₽</code>\n"
+            f"═══════════════════════════════\n\n"
+            f"👤 <b>Твои данные:</b>\n"
+            f"• ФИО: {fio}\n"
+            f"• Почта: {email}\n"
+            f"• Тел: {phone}\n"
+            f"• Адрес: {address}\n"
+            f"• Индекс: {postal_code}\n"
+            f"• Город: {city}\n\n"
+            f"💳 <b>Оплата:</b>\n"
+            f"<code>2204 3211 2754 4542</code>\n"
+            f"Сбербанк (Ozon)\n\n"
+            f"🙏 <b>Отправь скриншот чека!</b>"
+        )
+        await message.answer(receipt, parse_mode="HTML")
+        
+        # УВЕДОМЛЕНИЕ АДМИНУ в формате "дерева"
+        now = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        admin_tree = format_order_tree(
+            order_id, fio, email, phone, username, address,
+            postal_code, city, item, size, price, shipping_cost, total, now
+        )
+        
+        admin_alert = (
+            f"🚀 <b>✨ НОВЫЙ ЗАКАЗ! ✨</b>\n\n{admin_tree}\n\n"
+            f"⏳ <b>Статус:</b> Ожидание оплаты"
+        )
+        
+        await bot.send_message(ADMIN_ID, admin_alert, parse_mode="HTML")
+        logger.info(f"📦 Заказ #{order_id} создан от {fio}")
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"❌ Ошибка парсинга JSON: {e}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка обработки заказа: {e}")
+        import traceback
+        traceback.print_exc()
 
-            # Извлекаем всё
-            fio = get_val(d, 'customer', 'fio', 'name', 'full_name')
-            phone = get_val(d, 'phone', 'tel')
-            email = get_val(d, 'email', 'mail', 'user_email', 'e-mail')
-            addr = get_val(d, 'address', 'addr')
-            idx = find_index(d)
-            tg = get_val(d, 'tg_user', 'username', 'tg')
-            item = get_val(d, 'item', 'product')
-            size = get_val(d, 'size', 'variant')
-            price = int(d.get('price', 0))
-            
-            # 🚚 ПОЛУЧАЕМ ГОРОД ДЛЯ РАСЧЕТА ДОСТАВКИ
-            shipping_city = get_val(d, 'shipping_city', 'city')
-            print(f"🏙️ Город из заказа: '{shipping_city}'")
-            
-            # 🔧 ПЫТАЕМСЯ РАССЧИТАТЬ ДОСТАВКУ
-            ship = int(d.get('shipping_cost', 500))
-            
-            if shipping_city and shipping_city != "—":
-                try:
-                    from cdek_integration import calculate_shipping
-                    print(f"🚀 Рассчитываю доставку в город '{shipping_city}'...")
-                    ship, ship_desc = await calculate_shipping(shipping_city)
-                    print(f"✅ Доставка рассчитана: {ship}₽ ({ship_desc})")
-                except Exception as e:
-                    print(f"⚠️ Ошибка при расчете доставки: {e}")
-                    ship = 500
-            
-            total = price + ship
 
-            # СОХРАНЯЕМ ЗАКАЗ В БД
-            chat_id = str(message.from_user.id)
-            order_id = save_order(fio, phone, email, addr, idx, item, size, total, tg, chat_id)
-            if order_id:
-                print(f"✅ Заказ #{order_id} сохранен в БД")
+# ==========================================
+# 7️⃣ ЗАПУСК
+# ==========================================
 
-            receipt = (
-                f"✅ <b>Заказ получен!</b>\n\n"
-                f"📦 <b>Товар:</b> {item}\n"
-                f"📏 <b>Размер:</b> {size}\n"
-                f"💰 <b>Цена товара:</b> {price:,} руб\n"
-                f"🚚 <b>Доставка:</b> {ship:,} руб\n"
-                f"<b>Итого к оплате:</b> {total:,} руб\n\n"
-                f"👤 <b>твои данные:</b>\n"
-                f"• ФИО: {fio}\n"
-                f"• Телефон: {phone}\n"
-                f"• Почта: {email}\n"
-                f"• Адрес: {addr}\n"
-                f"• Индекс: {idx}\n"
-                f"• TG: @{tg.replace('@','')}\n\n"
-                f"📍 <b>Реквизиты для оплаты:</b>\n"
-                f"<code>2204 3211 2754 4542</code> (Ozon Банк)\n\n"
-                f"🙏 Пришли скрин чека в ответ на это сообщение!"
-            )
-            await message.answer(receipt, parse_mode="HTML")
-
-            admin_alert = (
-                f"🚀 <b>НОВЫЙ ЗАКАЗ!</b> (#{order_id})\n\n"
-                f"👤 ФИО: {fio}\n📱 тел: {phone}\n📧 почта: {email}\n"
-                f"📍 адрес: {addr}\n📮 индекс: {idx}\n👕 товар: {item}\n"
-                f"📏 размер: {size}\n💰 итого: {total:,}\n🔗 связь: @{tg.replace('@','')}"
-            )
-            await bot.send_message(ADMIN_ID, admin_alert, parse_mode="HTML")
-
-        except Exception as e:
-            print(f"Ошибка в handle_order: {e}")
-            import traceback
-            traceback.print_exc()
-
-# 6. ЗАПУСК
 async def main():
-    init_db()  # Инициализируем БД при запуске
+    """Главная функция запуска"""
+    init_db()
+    
+    print("\n" + "█"*80)
+    print("█" + " "*78 + "█")
+    print("█" + "  🤖 БОТ MNGNV SHOP ЗАПУСКАЕТСЯ".center(78) + "█")
+    print("█" + " "*78 + "█")
+    print("█"*80)
+    print(f"✅ Admin ID: {ADMIN_ID}")
+    print(f"✅ Mini App URL: {MINI_APP_URL}")
+    print(f"✅ Прокси: {'🟢 ВКЛЮЧЕН' if USE_PROXY else '🔴 ОТКЛЮЧЕН (прямое подключение)'}")
+    print(f"✅ БД: {DB_PATH}")
+    print("█"*80)
+    print()
+    
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n✅ Бот остановлен пользователем")
+    except Exception as e:
+        print(f"\n❌ КРИТИЧЕСКАЯ ОШИБКА: {e}")
+        import traceback
+        traceback.print_exc()

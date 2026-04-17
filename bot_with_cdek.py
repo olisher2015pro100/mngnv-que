@@ -29,8 +29,12 @@ except ImportError as e:
     AIOGRAM_AVAILABLE = False
 
 # ====== ПРОКСИ ДЛЯ PythonAnywhere ======
-PROXY_URL = "http://proxy.server:3128"
-print(f"🔗 Прокси: {PROXY_URL}")
+PROXY_URL = os.getenv("PROXY_URL", None)
+if PROXY_URL == "http://proxy.server:3128":
+    PROXY_URL = None  # Отключаем дефолтный прокси для локального тестирования
+    print("⚠️ Прокси отключен (локальное тестирование)")
+elif PROXY_URL:
+    print(f"🔗 Прокси: {PROXY_URL}")
 
 # ====== FASTAPI (С ПРОВЕРКОЙ) ======
 try:

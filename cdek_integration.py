@@ -18,9 +18,16 @@ load_dotenv()
 # КОНФИГ И ПЕРЕМЕННЫЕ
 # ==========================================
 
-# 🌐 ПРОКСИ ДЛЯ PythonAnywhere (устанавливается из bot_with_cdek.py)
-PROXY_URL = os.getenv("PROXY_URL", "http://proxy.server:3128")
-print(f"🔗 PROXY_URL для CDEK: {PROXY_URL}")
+# 🌐 ПРОКСИ ДЛЯ PythonAnywhere (устанавливается из .env, опционально)
+PROXY_URL = os.getenv("PROXY_URL", None)
+if PROXY_URL == "http://proxy.server:3128":
+    PROXY_URL = None  # Отключаем дефолтный прокси для локального тестирования
+    print("⚠️ Прокси CDEK отключен (локальное тестирование)")
+elif PROXY_URL:
+    print(f"🔗 Прокси CDEK: {PROXY_URL}")
+else:
+    print("✅ CDEK работает БЕЗ прокси (прямое подключение)")
+
 CDEK_CLIENT_ID = os.getenv("CDEK_CLIENT_ID", "")
 CDEK_CLIENT_SECRET = os.getenv("CDEK_CLIENT_SECRET", "")
 
@@ -31,7 +38,7 @@ CDEK_CITIES_URL = "https://api.cdek.ru/v2/location/cities"
 
 # Параметры посылки
 SENDER_CITY_CODE = 442  # Улан-Удэ
-PACKAGE_WEIGHT = 0.9  # кг
+PACKAGE_WEIGHT = 1.0  # кг
 PACKAGE_LENGTH = 30  # см
 PACKAGE_WIDTH = 25  # см
 PACKAGE_HEIGHT = 10  # см

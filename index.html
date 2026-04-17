@@ -267,12 +267,12 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
                 <span style="font-size: 12px; color: #666;">DaData подскажет город и адрес</span>
             </div>
 
-            <!-- ИНФО ПО ДОСТАВКЕ -->
-            <div class="shipping-info" id="shipping-info" style="display: none;">
+            <!-- ИНФО ПО ДОСТАВКЕ - СТАТИЧНОЕ ЗНАЧЕНИЕ -->
+            <div class="shipping-info" id="shipping-info">
                 <div style="color: #888;">💰 Стоимость доставки:</div>
-                <div class="shipping-cost" id="shipping-cost">...</div>
-                <div id="shipping-status" class="shipping-status loading">
-                    <span class="spinner"></span>Загрузка...
+                <div class="shipping-cost" id="shipping-cost">Рассчитается в боте</div>
+                <div id="shipping-status" class="shipping-status success" style="background: #1a2a1a; color: #6a6;">
+                    ✅ Доставка рассчитывается автоматически при оформлении заказа
                 </div>
             </div>
 
@@ -394,10 +394,10 @@ black/white
                     console.log(`✅ Индекс вписан в поле: ${postalCode}`);
                 }
                 
-                // Запускаем расчет доставки по выбранному городу
+                // ✅ Доставка больше не рассчитывается здесь
+                // Бот rассчитает доставку автоматически через СДЭК API
                 if (city) {
-                    console.log(`🚀 Запускаю расчет доставки для города: ${city}`);
-                    selectCity(city);
+                    console.log(`✅ Город выбран: ${city} (доставка рассчитается в боте)`);
                 } else {
                     console.warn("⚠️ Город не найден в адресе");
                 }
@@ -436,98 +436,20 @@ black/white
         e.target.value = formatted;
     }
 
-    // 🏙️ ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ (БОЛЬШЕ НЕ ИСПОЛЬЗУЕТСЯ - DaData САМОСТОЯТЕЛЬНО ПОКАЗЫВАЕТ ПОДСКАЗКИ)
-    function onCityInput(e) {
-        // Оставлена для обратной совместимости, но основная логика в DaData
-    }
-
-    // 🎯 ВЫБОР ГОРОДА И РАСЧЕТ ДОСТАВКИ
+    //  ВЫБОР ГОРОДА - ДОСТАВКА РАССЧИТАЕТСЯ В БОТЕ
     async function selectCity(cityName) {
-        // Устанавливаем выбранный город
+        // Этот расчет больше не выполняется на фронте
+        // Доставка будет рассчитана ботом через СДЭК API
+        
         selectedCity = cityName || "";
+        console.log(`✅ Город выбран: ${cityName}`);
+        console.log(`💬 Доставка будет рассчитана ботом при оформлении заказа`);
         
-        console.log(`🏙️ Выбран город для расчета: ${cityName}`);
-        
-        // Показываем блок с информацией о доставке
-        const shippingInfo = document.getElementById('shipping-info');
-        const statusDiv = document.getElementById('shipping-status');
-        const costDiv = document.getElementById('shipping-cost');
-        
-        if (!shippingInfo || !statusDiv || !costDiv) {
-            console.error("❌ Не найдены элементы для отображения доставки");
-            return;
-        }
-        
-        shippingInfo.style.display = 'block';
-        statusDiv.innerHTML = '<span class="spinner"></span>Рассчитываю доставку СДЭК...';
-        statusDiv.className = 'shipping-status loading';
-        
-        try {
-            // ✅ ОТПРАВЛЯЕМ POST-ЗАПРОС НА BACKEND
-            console.log("📤 Отправляю запрос на: https://olisher2015pro100.pythonanywhere.com/api/calculate-shipping");
-            console.log(`📍 Параметры: city="${cityName}"`);
-            
-            const response = await fetch('https://olisher2015pro100.pythonanywhere.com/api/calculate-shipping', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ city: cityName })
-            });
-            
-            console.log(`📥 Статус ответа HTTP: ${response.status}`);
-            
-            // Проверяем статус ответа
-            if (!response.ok) {
-                throw new Error(`HTTP Error: ${response.status}`);
-            }
-            
-            // Парсим JSON
-            const data = await response.json();
-            console.log('📊 Полный ответ от сервера:', data);
-            
-            // Извлекаем стоимость доставки
-            currentShippingCost = parseInt(data.cost) || 500;
-            
-            // ВАЖНО: Если цена 500р, выводим причину ошибки
-            if (currentShippingCost === 500 && data.description) {
-                console.warn(`⚠️ СТОИМОСТЬ ДОСТАВКИ = 500₽`);
-                console.warn(`   Возможная причина: ${data.description}`);
-            }
-            
-            // ✅ ОБНОВЛЯЕМ UI С РЕЗУЛЬТАТОМ
-            costDiv.textContent = `${currentShippingCost} ₽`;
-            statusDiv.innerHTML = `✅ ${data.description || 'Доставка рассчитана'}`;
-            statusDiv.className = 'shipping-status success';
-            
-            console.log(`✅ УСПЕХ: Доставка в ${cityName}: ${currentShippingCost} ₽`);
-            
-        } catch (error) {
-            // ❌ Обработка ошибок
-            console.error("❌❌❌ КРИТИЧЕСКАЯ ОШИБКА ПРИ РАСЧЕТЕ ДОСТАВКИ ❌❌❌");
-            console.error(`   Тип ошибки: ${error.name}`);
-            console.error(`   Сообщение: ${error.message}`);
-            console.error(`   Stack: ${error.stack}`);
-            console.error("❌❌❌ КОНЕЦ ОШИБКИ ❌❌❌");
-            
-            // Выводим алерт пользователю
-            tg.showAlert(`⚠️ Ошибка расчета доставки:\n\n${error.message}\n\nПопробуй еще раз или выбери другой адрес.`);
-            
-            // Используем стандартную стоимость
-            currentShippingCost = 500;
-            costDiv.textContent = `${currentShippingCost} ₽ (по умолчанию)`;
-            statusDiv.innerHTML = `⚠️ Ошибка подключения - используется стандартная стоимость`;
-            statusDiv.className = 'shipping-status error';
-        }
+        // Используем стандартную стоимость доставки
+        currentShippingCost = 500;
         
         // Обновляем общую стоимость заказа
         updateTotalPrice();
-    }
-
-    // 🏙️ ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ (БОЛЬШЕ НЕ ИСПОЛЬЗУЕТСЯ)
-    function hideCitySuggestions() {
-        // DaData сам управляет показом/скрытием подсказок
     }
 
     // 📊ОБЩ ФУНКЦИИ

@@ -77,7 +77,11 @@ async def get_cdek_oauth_token() -> Optional[str]:
                 "client_secret": CDEK_CLIENT_SECRET
             }
             
-            print(f"🌐 Получаю токен CDEK через прокси: {PROXY_URL}")
+            print(f"\n🌐 ПОЛУЧЕНИЕ ТОКЕНА CDEK")
+            print(f"   URL: {CDEK_AUTH_URL}")
+            print(f"   Метод: POST")
+            print(f"   Прокси: {PROXY_URL}")
+            print(f"   Данные: grant_type=client_credentials, client_id={CDEK_CLIENT_ID[:15]}..., client_secret=***")
             
             # ⚠️ ВАЖНО: CDEK требует form-encoded, не JSON!
             async with session.post(
@@ -86,6 +90,7 @@ async def get_cdek_oauth_token() -> Optional[str]:
                 timeout=aiohttp.ClientTimeout(total=10),
                 proxy=PROXY_URL  # ← ИСПОЛЬЗУЕМ ПРОКСИ
             ) as resp:
+                print(f"   HTTP Статус ответа: {resp.status}")
                 if resp.status == 200:
                     data = await resp.json()
                     token = data.get("access_token")
@@ -228,14 +233,6 @@ async def calculate_shipping(city_name: str) -> Tuple[int, str]:
         return 500, "Доставка (сумма по умолчанию)"
     
     try:
-        city_name = city_name.strip()
-        
-        # Получаем код города
-        city_code = await get_city_code(city_name)
-        if not city_code:
-            logger.warning(f"⚠️ Не удалось найти код для города '{city_name}', используем дефолт 500 руб")
-            return 500, "Доставка (город не найден, дефолтная стоимость)"
-        
         # Получаем токен
         token = await get_cdek_oauth_token()
         if not token:
@@ -263,7 +260,16 @@ async def calculate_shipping(city_name: str) -> Tuple[int, str]:
             # type передаем как параметр URL, а не в теле запроса!
             params = {"type": 36}
             
-            print(f"🌐 Отправляю CDEK тарифный запрос через прокси: {PROXY_URL}")
+            print(f"\n🌐 ЗАПРОС ТАРИФА CDEK")
+            print(f"   URL: {CDEK_CALC_URL}")
+            print(f"   Метод: POST")
+            print(f"   Прокси: {PROXY_URL}")
+            print(f"   Headers: {headers}")
+            print(f"   Query Params: {params}")
+            print(f"   Body (JSON):")
+            print(f"      from_location.code: {payload['from_location']['code']}")
+            print(f"      to_location.code: {payload['to_location']['code']}")
+            print(f"      packages: вес={PACKAGE_WEIGHT}кг, размеры={PACKAGE_LENGTH}x{PACKAGE_WIDTH}x{PACKAGE_HEIGHT}см")
             
             async with session.post(
                 CDEK_CALC_URL,

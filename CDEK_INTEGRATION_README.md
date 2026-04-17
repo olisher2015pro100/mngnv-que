@@ -90,9 +90,9 @@ cp .env.example /path/to/project/.env
 ```bash
 # .env
 BOT_TOKEN=твой_токен_от_@BotFather
-CDEK_CLIENT_ID=4I5vLAbLUPdMIOEhVD0osn4fS0fvTttj
-CDEK_CLIENT_SECRET=g1WXBI56G3ZAPrY0TleKblVIwsnMCm8J
-MINI_APP_URL=https://yourdomain.com/index_updated.html
+CDEK_CLIENT_ID=
+CDEK_CLIENT_SECRET=
+MINI_APP_URL=
 ```
 
 ### Шаг 4: Запусти бота
@@ -136,11 +136,11 @@ python-dotenv==1.0.x
 
 | Переменная | Описание | Пример |
 |-----------|---------|--------|
-| `BOT_TOKEN` | Токен от @BotFather | `8515886958:AAHWLWjmGtFj9BsUle...` |
-| `ADMINS` | ID администраторов (через запятую) | `1018181608,1234567890` |
-| `CDEK_CLIENT_ID` | Client ID CDEK | `4I5vLAbLUPdMIOEhVD0osn4fS0fvTttj` |
-| `CDEK_CLIENT_SECRET` | Client Secret CDEK | `g1WXBI56G3ZAPrY0TleKblVIwsnMCm8J` |
-| `MINI_APP_URL` | URL к index_updated.html | `https://yourdomain.com/index_updated.html` |
+| `BOT_TOKEN` | Токен от @BotFather | `` |
+| `ADMINS` | ID администраторов (через запятую) | `` |
+| `CDEK_CLIENT_ID` | Client ID CDEK | ` |
+| `CDEK_CLIENT_SECRET` | Client Secret CDEK | ` |
+| `MINI_APP_URL` | URL к index_updated.html | `` |
 
 ### Параметры CDEK
 
@@ -303,7 +303,7 @@ python cdek_integration.py
 ==================================================
 
 1️⃣ ТЕСТ ПОЛУЧЕНИЯ ТОКЕНА:
-✅ Токен получен: eyJhbGciOiJIUzI1NiIsIn...
+✅ Токен получен: 
 
 2️⃣ ТЕСТ ПОИСКА ГОРОДА:
 ✅ Москва: код 1

@@ -6,6 +6,7 @@ EXAMPLE: Интеграция CDEK API в aiogram 3.x Mini App бот
     pip install aiogram==3.x aiohttp python-dotenv fastapi uvicorn
 """
 
+import uvicorn
 import os
 import json
 import logging
@@ -53,23 +54,20 @@ except Exception as e:
     FASTAPI_AVAILABLE = False
     app = FastAPI() # Создаем пустой объект, чтобы WSGI не ругался при импорте
 
-# Эндпоинт для связи фронтенда и СДЭК
-@app.post("/api/calculate-shipping")
-async def calculate_shipping(request: Request):
-    try:
-        data = await request.json()
-        city_name = data.get("city")
-        print(f"🚀 Получен запрос на расчет: {city_name}")
-        
-        # Вызываем функцию из твоего модуля cdek_integration
-        result = await calculate_shipping_cost(city_name)
-        return {"cost": result}
-    except Exception as e:
-        print(f"❌ Ошибка расчета: {e}")
-        return {"cost": 500, "error": str(e)}
-except ImportError as e:
-    print(f"❌ Ошибка импорта FastAPI: {e}")
-    FASTAPI_AVAILABLE = False
+# Эндпоинт для связи фронтенда и СДЭК (временный, для тестирования)
+# @app.post("/api/calculate-shipping")
+# async def calculate_shipping(request: Request):
+#     try:
+#         data = await request.json()
+#         city_name = data.get("city")
+#         print(f"🚀 Получен запрос на расчет: {city_name}")
+#         
+#         # Вызываем функцию из твоего модуля cdek_integration
+#         result = await calculate_shipping_cost(city_name)
+#         return {"cost": result}
+#     except Exception as e:
+#         print(f"❌ Ошибка расчета: {e}")
+#         return {"cost": 500, "error": str(e)}
 
 # ====== CDEK (С ПРОВЕРКОЙ) ======
 try:
@@ -517,7 +515,7 @@ def main():
     # Параметры запуска FastAPI сервера
     uvicorn_config = uvicorn.Config(
         app,
-        host="127.0.0.1",
+        host="0.0.0.0",  # ← ВАЖНО: 0.0.0.0 для доступа из внешних сетей (PythonAnywhere)
         port=8080,
         log_level="info"
     )

@@ -23,7 +23,7 @@ DB_PATH = os.path.join(os.path.dirname(__file__), 'orders.db')
 # СДЭК API v2.0
 CDEK_CLIENT_ID = '4I5vLAbLUPdMIOEhVD0osn4fS0fvTttj'
 CDEK_CLIENT_SECRET = 'g1WXBI56G3ZAPrY0TleKblVIwsnMCm8J'
-CDEK_SENDER_CITY_CODE = 541  # Улан-Удэ
+CDEK_SENDER_CITY_CODE = 1102  # Улан-Удэ в СДЭК API v2.0
 CDEK_TARIFF_CODE = 136  # Посылка склад-склад
 CDEK_DEFAULT_SHIPPING = 500  # Страховка при ошибке
 CDEK_API_URL = "https://api.cdek.ru/v2"
@@ -157,22 +157,32 @@ async def get_cdek_token():
         }
         
         async with aiohttp.ClientSession() as session:
-            async with session.post(f"{CDEK_API_URL}/auth/account", headers=headers) as response:
+            async with session.post(f"{CDEK_API_URL}/auth/account", headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as response:
                 if response.status == 200:
                     data = await response.json()
                     token = data.get('access_token')
-                    print(f"✅ [СДЭК] Токен получен")
+                    print(f"✅ [СДЭК] Токен получен успешно")
                     return token
                 else:
-                    print(f"❌ [СДЭК] Ошибка авторизации: {response.status}")
+                    error_text = await response.text()
+                    print(f"❌ [СДЭК] Ошибка авторизации: HTTP {response.status}")
+                    print(f"   Ответ сервера: {error_text}")
                     return None
+    except asyncio.TimeoutError:
+        print(f"❌ [СДЭК] Timeout при получении токена (>10 сек)")
+        return None
     except Exception as e:
-        print(f"❌ [СДЭК] Ошибка при получении токена: {e}")
+        print(f"❌ [СДЭК] Ошибка при получении токена: {type(e).__name__}: {e}")
         return None
 
 async def get_city_code(postal_code):
-    """Получает внутренний код города СДЭК по индексу"""
+    """Получает внутренний код города СДЭК по почтовому индексу"""
+    if not postal_code or postal_code == "—":
+        print(f"⚠️ [СДЭК] Индекс не передан")
+        return None
+        
     try:
+        print(f"🔍 [СДЭК] Поиск города по индексу: {postal_code}")
         token = await get_cdek_token()
         if not token:
             print(f"❌ [СДЭК] Не удалось получить токен для поиска города")
@@ -183,14 +193,16 @@ async def get_city_code(postal_code):
             "Content-Type": "application/json"
         }
         
-        # Параметры для поиска по индексу
         params = {
-            "postal_code": postal_code,
+            "postal_code": str(postal_code),
             "country_code": "RU"
         }
         
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"{CDEK_API_URL}/location/cities", headers=headers, params=params) as response:
+            async with session.get(f"{CDEK_API_URL}/location/cities", 
+                                  headers=headers, 
+                                  params=params,
+                                  timeout=aiohttp.ClientTimeout(total=10)) as response:
                 if response.status == 200:
                     data = await response.json()
                     if data.get('items') and len(data['items']) > 0:
@@ -199,21 +211,28 @@ async def get_city_code(postal_code):
                         print(f"✅ [СДЭК] Код города найден: {city_name} (код: {city_code})")
                         return city_code
                     else:
-                        print(f"❌ [СДЭК] Город с индексом {postal_code} не найден")
+                        print(f"⚠️ [СДЭК] Город с индексом {postal_code} не найден в базе")
                         return None
                 else:
-                    print(f"❌ [СДЭК] Ошибка при поиске города: {response.status}")
+                    error_text = await response.text()
+                    print(f"❌ [СДЭК] Ошибка при поиске города: HTTP {response.status}")
+                    print(f"   Ответ: {error_text[:200]}")
                     return None
+    except asyncio.TimeoutError:
+        print(f"❌ [СДЭК] Timeout при поиске города (>10 сек)")
+        return None
     except Exception as e:
-        print(f"❌ [СДЭК] Ошибка при получении кода города: {e}")
+        print(f"❌ [СДЭК] Ошибка при получении кода города: {type(e).__name__}: {e}")
         return None
 
 async def calculate_shipping(city_to_code):
-    """Рассчитывает стоимость доставки до города"""
+    """Рассчитывает стоимость доставки до города через официальный калькулятор СДЭК"""
     try:
         if not city_to_code:
-            print(f"⚠️ [СДЭК] Код города не указан")
+            print(f"⚠️ [СДЭК] Код города не указан, используется страховка {CDEK_DEFAULT_SHIPPING}₽")
             return CDEK_DEFAULT_SHIPPING
+        
+        print(f"📦 [СДЭК] Расчет доставки до города с кодом: {city_to_code}")
         
         token = await get_cdek_token()
         if not token:
@@ -225,7 +244,7 @@ async def calculate_shipping(city_to_code):
             "Content-Type": "application/json"
         }
         
-        # Параметры расчета доставки
+        # Параметры расчета доставки для СДЭК API v2.0
         payload = {
             "from_location": {
                 "code": CDEK_SENDER_CITY_CODE
@@ -244,24 +263,38 @@ async def calculate_shipping(city_to_code):
             "tariff_code": CDEK_TARIFF_CODE
         }
         
+        print(f"   Отправляю запрос калькулятора СДЭК...")
+        print(f"   От: {CDEK_SENDER_CITY_CODE} (Улан-Удэ), До: {city_to_code}")
+        
         async with aiohttp.ClientSession() as session:
             async with session.post(f"{CDEK_API_URL}/calculator/tarifflist", 
                                    headers=headers, 
-                                   json=payload) as response:
+                                   json=payload,
+                                   timeout=aiohttp.ClientTimeout(total=10)) as response:
+                
+                response_text = await response.text()
+                
                 if response.status == 200:
                     data = await response.json()
+                    
                     if data.get('result') and len(data['result']) > 0:
                         delivery_cost = int(data['result'][0].get('price', CDEK_DEFAULT_SHIPPING))
-                        print(f"✅ [СДЭК] Цена доставки: {delivery_cost}₽")
+                        print(f"✅ [СДЭК] Цена доставки рассчитана: {delivery_cost}₽")
                         return delivery_cost
                     else:
-                        print(f"⚠️ [СДЭК] Нет результатов расчета, используется страховка {CDEK_DEFAULT_SHIPPING}₽")
+                        print(f"⚠️ [СДЭК] Нет результатов расчета (возможно, маршрут не доступен)")
+                        print(f"   Ответ сервера: {response_text[:300]}")
                         return CDEK_DEFAULT_SHIPPING
                 else:
-                    print(f"❌ [СДЭК] Ошибка при расчете доставки: {response.status}")
+                    print(f"❌ [СДЭК] Ошибка калькулятора: HTTP {response.status}")
+                    print(f"   Ответ сервера: {response_text[:300]}")
                     return CDEK_DEFAULT_SHIPPING
+                    
+    except asyncio.TimeoutError:
+        print(f"❌ [СДЭК] Timeout при расчете доставки (>10 сек)")
+        return CDEK_DEFAULT_SHIPPING
     except Exception as e:
-        print(f"❌ [СДЭК] Ошибка при расчете доставки: {e}")
+        print(f"❌ [СДЭК] Ошибка при расчете доставки: {type(e).__name__}: {e}")
         return CDEK_DEFAULT_SHIPPING
 
 # 5. ОБРАБОТЧИКИ
@@ -390,10 +423,12 @@ async def handle_order(message: types.Message):
         try:
             d = json.loads(message.web_app_data.data)
             
-            # ЛОГИ ДЛЯ ПРОВЕРКИ В БАШ
-            print("\n--- ПРИШЛИ ДАННЫЕ ---")
+            # ЛОГИ ДЛЯ ПРОВЕРКИ
+            print("\n" + "="*60)
+            print("📨 ПОЛУЧЕНЫ ДАННЫЕ ИЗ WEB APP")
+            print("="*60)
             print(json.dumps(d, indent=2, ensure_ascii=False))
-            print("----------------------\n")
+            print("="*60 + "\n")
 
             # Извлекаем всё
             fio = get_val(d, 'customer', 'fio', 'name', 'full_name')
@@ -406,30 +441,45 @@ async def handle_order(message: types.Message):
             size = get_val(d, 'size', 'variant')
             price = int(d.get('price', 0))
             
-            # РАСЧЕТ ДОСТАВКИ ЧЕРЕЗ СДЭК
-            print(f"\n📍 [ДОСТАВКА] Начинаю расчет для индекса: {idx}")
+            # ✅ РАСЧЕТ ДОСТАВКИ ЧЕРЕЗ СДЭК API v2.0
+            print("\n" + "-"*60)
+            print("🚚 НАЧИНАЮ РАСЧЕТ ДОСТАВКИ")
+            print("-"*60)
+            print(f"📍 Почтовый индекс: {idx}")
+            
+            ship = CDEK_DEFAULT_SHIPPING  # Страховка по умолчанию
             
             # Получаем код города СДЭК по индексу
             if idx and idx != "—":
+                print(f"🔍 Ищу код города СДЭК по индексу {idx}...")
                 city_code = await get_city_code(idx)
+                
                 if city_code:
+                    print(f"✅ Код города найден: {city_code}")
+                    print(f"💰 Рассчитываю стоимость доставки...")
                     # Рассчитываем стоимость доставки
                     ship = await calculate_shipping(city_code)
                 else:
-                    print(f"⚠️ [ДОСТАВКА] Город не найден по индексу {idx}, используется страховка {CDEK_DEFAULT_SHIPPING}₽")
+                    print(f"⚠️ Город не найден по индексу {idx}")
+                    print(f"   Используется страховка: {CDEK_DEFAULT_SHIPPING}₽")
                     ship = CDEK_DEFAULT_SHIPPING
             else:
-                print(f"⚠️ [ДОСТАВКА] Индекс не указан, используется страховка {CDEK_DEFAULT_SHIPPING}₽")
+                print(f"⚠️ Индекс не указан или равен '—'")
+                print(f"   Используется страховка: {CDEK_DEFAULT_SHIPPING}₽")
                 ship = CDEK_DEFAULT_SHIPPING
             
             total = price + ship
-            print(f"💰 [ИТОГО] Цена товара: {price}₽ + Доставка: {ship}₽ = {total}₽\n")
+            print(f"\n💳 ИТОГОВАЯ СУММА")
+            print(f"   Цена товара:  {price:,}₽")
+            print(f"   Доставка:     {ship:,}₽")
+            print(f"   ИТОГО:        {total:,}₽")
+            print("-"*60 + "\n")
 
             # СОХРАНЯЕМ ЗАКАЗ В БД
             chat_id = str(message.from_user.id)
             order_id = save_order(fio, phone, email, addr, idx, item, size, total, tg, chat_id)
             if order_id:
-                print(f"✅ Заказ #{order_id} сохранен в БД")
+                print(f"✅ Заказ #{order_id} сохранен в БД\n")
 
             receipt = (
                 f"✅ <b>Заказ получен!</b>\n\n"
@@ -460,7 +510,11 @@ async def handle_order(message: types.Message):
             await bot.send_message(ADMIN_ID, admin_alert, parse_mode="HTML")
 
         except Exception as e:
-            print(f"Ошибка в handle_order: {e}")
+            print(f"\n❌ КРИТИЧЕСКАЯ ОШИБКА В handle_order:")
+            print(f"   Тип: {type(e).__name__}")
+            print(f"   Сообщение: {e}")
+            import traceback
+            print(f"   Stack trace: {traceback.format_exc()}")
 
 # 6. ЗАПУСК
 async def main():

@@ -515,6 +515,14 @@ black/white
         const postal_code = document.getElementById('postal-code').value.trim() || selectedPostalCode;
         const addressFull = document.getElementById('selected-address-full').value.trim() || selectedAddressFull;
 
+        // 🔍 ОТЛАДКА
+        console.log("📋 ОТЛАДКА ЗАКАЗА:");
+        console.log(`   selected-city field: '${document.getElementById('selected-city').value}'`);
+        console.log(`   selectedCity variable: '${selectedCity}'`);
+        console.log(`   Final city: '${city}'`);
+        console.log(`   postal_code: '${postal_code}'`);
+        console.log(`   selectedPostalCode: '${selectedPostalCode}'`);
+
         // ✓ ВАЛИДАЦИЯ
         if (!selectedSize) {
             tg.showAlert("🚫 Выбери размер!");
@@ -528,8 +536,8 @@ black/white
             tg.showAlert("🚫 Введи корректный номер телефона!");
             return;
         }
-        if (!city) {
-            tg.showAlert("🚫 Выбери город доставки!");
+        if (!city && !postal_code) {
+            tg.showAlert("🚫 Выбери город доставки или укажи почтовый индекс!");
             return;
         }
         if (!address) {
@@ -547,7 +555,7 @@ black/white
             item: p.title,
             price: p.price,
             shipping_cost: currentShippingCost,
-            shipping_city: city,
+            shipping_city: city || "не указан",
             size: selectedSize,
             customer: fio,
             phone: phone,
@@ -555,6 +563,8 @@ black/white
             address: address,
             address_full: addressFull,
             postal_code: postal_code,
+            index: postal_code,
+            idx: postal_code,
             tg_user: tg_c
         };
 

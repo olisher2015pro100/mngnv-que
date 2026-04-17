@@ -239,6 +239,12 @@ async def calculate_shipping(city_name: str) -> Tuple[int, str]:
             logger.warning("⚠️ Не удалось получить токен CDEK, используем дефолт 500 руб")
             return 500, "Доставка (ошибка API, дефолтная стоимость)"
         
+        # Получаем код города из названия
+        city_code = await get_city_code(city_name)
+        if not city_code:
+            logger.warning(f"⚠️ Не удалось найти город '{city_name}', используем дефолт 500 руб")
+            return 500, f"Доставка (город '{city_name}' не найден, дефолтная стоимость)"
+        
         # Запрашиваем тариф
         async with aiohttp.ClientSession() as session:
             headers = {"Authorization": f"Bearer {token}"}

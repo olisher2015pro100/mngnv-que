@@ -1,0 +1,31 @@
+/**
+ * mngnv shop — общие стили Mini App (шрифт serif, точки слайдера)
+ */
+
+body,
+input,
+select,
+button,
+textarea,
+.suggestions-suggestions {
+    font-family: "Times New Roman", Times, Georgia, serif !important;
+}
+
+/* Точки пагинации: белые с чёрной обводкой — видны на любом фоне */
+.swiper-pagination-bullet {
+    width: 8px !important;
+    height: 8px !important;
+    background: #fff !important;
+    border: 1px solid #000;
+    opacity: 1 !important;
+    box-sizing: border-box;
+}
+
+.swiper-pagination-bullet-active {
+    background: #fff !important;
+    border: 1px solid #000;
+}
+
+.swiper {
+    overflow: hidden;
+}

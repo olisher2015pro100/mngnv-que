@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>mngnv_que</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+    <link rel="stylesheet" href="style.css" />
     
     <!-- jQuery -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
@@ -31,7 +31,7 @@
         body {
             margin: 0; padding: 0; min-height: 100vh;
             background: var(--bg); color: var(--text);
-            font-family: 'Inter', sans-serif;
+            font-family: "Times New Roman", Times, Georgia, serif;
             text-transform: lowercase;
         }
 
@@ -94,7 +94,7 @@
         input, select { 
             width: 100%; padding: 20px; border-radius: 20px; 
             background: var(--input-bg); border: 1px solid #1a1a1a; color: #fff; 
-            box-sizing: border-box; outline: none; font-family: 'Inter', sans-serif; font-size: 16px;
+            box-sizing: border-box; outline: none; font-family: inherit; font-size: 16px;
             transition: 0.2s;
         }
         input:focus, select:focus { border-color: #444; background: #151515; }
@@ -153,7 +153,7 @@
             color: var(--text) !important;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
             z-index: 1000 !important;
-            font-family: 'Inter', sans-serif !important;
+            font-family: "Times New Roman", Times, Georgia, serif !important;
         }
 
         .suggestions-suggestions .suggestions-suggestion {
@@ -193,14 +193,14 @@
                 <img src="https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode.jpg" alt="product">
                 <div class="card-info">
                     <div class="card-title">zip-hoodie "snich"</div>
-                    <div class="card-price">8000 rub</div>
+                    <div class="card-price">8000₽</div>
                 </div>
             </div>
             <div class="product-card" onclick="openProduct('tshirt')">
                 <img src="tshirt1.jpg" alt="tshirt">
                 <div class="card-info">
                     <div class="card-title">t-shirt "snich"</div>
-                    <div class="card-price">2900 rub</div>
+                    <div class="card-price">2900₽</div>
                 </div>
             </div>
         </div>
@@ -215,7 +215,7 @@
         </div>
         <div class="details">
             <div class="main-title">zip-hoodie "snich"</div>
-            <div class="main-price">8000 rub</div>
+            <div class="main-price">8000₽</div>
             <div class="description">new drop
 оверсайз крой
 ткань:футер 3-х нитка /кружево / кулирная гладь / сетка (кружево и кулирная гладь на заклепках, по желанию их можно снять)
@@ -309,6 +309,7 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
     let selectedSize = "";
     let currentProductKey = 'hoodie';
     let currentShippingCost = 500;
+    let productSwiper = null;
     let selectedCity = "";
     let selectedPostalCode = "";
     let selectedAddressFull = "";
@@ -465,8 +466,7 @@ black/white
 
     function updateTotalPrice() {
         const p = products[currentProductKey] || products.hoodie;
-        const total = p.price + currentShippingCost;
-        document.getElementById('submit-order').textContent = `Оформить заказ на ${total}₽`;
+        document.getElementById('submit-order').textContent = `Оформить заказ на ${p.price}₽`;
     }
 
     function openProduct(key = 'hoodie') {
@@ -476,16 +476,28 @@ black/white
         document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('selected'));
 
         let html = '';
-        p.images.forEach(img => { html += `<div class="swiper-slide"><img src="${img}"></div>`; });
+        p.images.forEach(img => { html += `<div class="swiper-slide"><img src="${img}" alt=""></div>`; });
+        if (productSwiper) {
+            productSwiper.destroy(true, true);
+            productSwiper = null;
+        }
+        const pagEl = document.querySelector('.mySwiper .swiper-pagination');
+        if (pagEl) pagEl.innerHTML = '';
         document.getElementById('gallery').innerHTML = html;
 
-        new Swiper(".mySwiper", { 
+        productSwiper = new Swiper(".mySwiper", {
+            slidesPerView: 1,
+            spaceBetween: 0,
+            loop: false,
             pagination: { el: ".swiper-pagination", clickable: true },
-            resistanceRatio: 0
+            resistanceRatio: 0,
+            watchOverflow: true,
+            observer: true,
+            observeParents: true,
         });
 
         document.querySelector('.main-title').textContent = p.title;
-        document.querySelector('.main-price').textContent = p.price + ' rub';
+        document.querySelector('.main-price').textContent = p.price + '₽';
         document.querySelector('.description').textContent = p.description;
 
         let sizesHtml = '';

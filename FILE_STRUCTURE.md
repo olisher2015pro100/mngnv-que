@@ -178,12 +178,12 @@ cp .env.example .env
 **Что должно быть внутри?**
 ```bash
 # Телеграм бот
-BOT_TOKEN=8515886958:AAHWLWjmGtFj9BsUleOSsqZCaoN7NxdBHf4
-ADMINS=1018181608
+TOKEN=твой_токен_от_BotFather
+ADMIN_ID=твой_телеграм_id
 
 # CDEK API (ОБЯЗАТЕЛЬНО получи эти ключи!)
-CDEK_CLIENT_ID=4I5vLAbLUPdMIOEhVD0osn4fS0fvTttj
-CDEK_CLIENT_SECRET=g1WXBI56G3ZAPrY0TleKblVIwsnMCm8J
+CDEK_CLIENT_ID=your_id_here
+CDEK_CLIENT_SECRET=your_secret_here
 
 # Твой Mini App URL
 MINI_APP_URL=https://yourdomain.com/index_updated.html
@@ -348,7 +348,7 @@ python cdek_integration.py
 python bot_with_cdek.py
 
 # Должно вывести:
-# 🚀 ЗАПУСК mngnv SHOP BOT
+# 🚀 ЗАПУСК Telegram Shop Template
 # ✅ API запущена на http://127.0.0.1:8000
 # 🤖 Запускаю Telegram бота...
 ```

@@ -8,6 +8,7 @@
 
 from aiogram import Dispatcher, types, Router
 from cdek_integration import calculate_shipping, validate_phone
+import os
 import asyncio
 
 router = Router()
@@ -240,8 +241,8 @@ async def notify_admin_shipping_error(error_message: str, city: str, user_id: in
     
     from aiogram import Bot
     
-    admin_id = 1018181608  # Твой ID
-    bot = Bot(token="YOUR_BOT_TOKEN")
+    admin_id = int(os.getenv("ADMIN_ID", "0"))
+    bot = Bot(token=os.getenv("TOKEN", ""))
     
     alert = (
         f"⚠️ <b>ОШИБКА РАСЧЕТА ДОСТАВКИ</b>\n\n"

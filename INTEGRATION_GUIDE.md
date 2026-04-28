@@ -30,7 +30,8 @@ pip install -r requirements.txt
 cp .env.example .env
 
 # Отредактируй .env и вставь:
-# BOT_TOKEN=твой_токен
+# TOKEN=твой_токен
+# ADMIN_ID=твой_телеграм_id
 # CDEK_CLIENT_ID=4I5vLAbLUPdMIOEhVD0osn4fS0fvTttj
 # CDEK_CLIENT_SECRET=g1WXBI56G3ZAPrY0TleKblVIwsnMCm8J
 ```
@@ -48,7 +49,7 @@ python bot_with_cdek.py
 
 Должно вывести:
 ```
-🚀 ЗАПУСК mngnv SHOP BOT
+🚀 ЗАПУСК Telegram Shop Template
 ✅ API запущена на http://127.0.0.1:8000
 🤖 Запускаю Telegram бота...
 ```

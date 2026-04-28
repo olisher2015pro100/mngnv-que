@@ -1,4 +1,4 @@
-# 🛍️ mngnv Mini App - Интеграция CDEK API
+# 🛍️ Telegram Shop Template - Интеграция CDEK API
 
 Полная интеграция расчета доставки CDEK v2.0 в Telegram Mini App на aiogram 3.x.
 
@@ -89,7 +89,8 @@ cp .env.example /path/to/project/.env
 
 ```bash
 # .env
-BOT_TOKEN=твой_токен_от_@BotFather
+TOKEN=твой_токен_от_@BotFather
+ADMIN_ID=твой_телеграм_id
 CDEK_CLIENT_ID=
 CDEK_CLIENT_SECRET=
 MINI_APP_URL=
@@ -429,7 +430,8 @@ else:
 
 3. **На продакшене используй переменные окружения:**
    ```bash
-   export BOT_TOKEN="твой_токен"
+   export TOKEN="твой_токен"
+   export ADMIN_ID="твой_телеграм_id"
    export CDEK_CLIENT_ID="твой_id"
    export CDEK_CLIENT_SECRET="твой_secret"
    ```
@@ -440,10 +442,10 @@ else:
 
 ### Вариант 1: Systemd сервис
 
-Создай `/etc/systemd/system/mngnv-bot.service`:
+Создай `/etc/systemd/system/telegram-shop-template.service`:
 ```ini
 [Unit]
-Description=mngnv Shop Bot with CDEK
+Description=Telegram Shop Template with CDEK
 After=network.target
 
 [Service]
@@ -454,7 +456,8 @@ ExecStart=/usr/bin/python3 /path/to/bot/bot_with_cdek.py
 Restart=always
 RestartSec=10
 
-Environment="BOT_TOKEN=your_token"
+Environment="TOKEN=your_token"
+Environment="ADMIN_ID=your_admin_id"
 Environment="CDEK_CLIENT_ID=your_id"
 Environment="CDEK_CLIENT_SECRET=your_secret"
 
@@ -464,9 +467,9 @@ WantedBy=multi-user.target
 
 Запуск:
 ```bash
-sudo systemctl enable mngnv-bot
-sudo systemctl start mngnv-bot
-sudo systemctl status mngnv-bot
+sudo systemctl enable telegram-shop-template
+sudo systemctl start telegram-shop-template
+sudo systemctl status telegram-shop-template
 ```
 
 ### Вариант 2: Docker
@@ -485,8 +488,8 @@ CMD ["python", "bot_with_cdek.py"]
 ```
 
 ```bash
-docker build -t mngnv-bot .
-docker run -d -e BOT_TOKEN=... -e CDEK_CLIENT_ID=... mngnv-bot
+docker build -t telegram-shop-template .
+docker run -d -e TOKEN=... -e ADMIN_ID=... -e CDEK_CLIENT_ID=... telegram-shop-template
 ```
 
 ---

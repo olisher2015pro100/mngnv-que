@@ -10,6 +10,7 @@ import uvicorn
 import os
 import json
 import logging
+import sys
 from typing import Dict, Optional
 from dotenv import load_dotenv
 
@@ -99,17 +100,27 @@ print(f"   FastAPI: {'✅' if FASTAPI_AVAILABLE else '❌'}")
 print(f"   cdek_integration: {'✅' if CDEK_AVAILABLE else '❌'}")
 print("=" * 60)
 
-# Telegram Bot
-BOT_TOKEN = os.getenv('BOT_TOKEN', '8515886958:AAHWLWjmGtFj9BsUleOSsqZCaoN7NxdBHf4')
-ADMINS = [int(id) for id in os.getenv('ADMINS', '1018181608').split(',')]
-ADMIN_ID = ADMINS[0] if ADMINS else None
+# Telegram Bot / настройки (только через окружение/.env)
+BOT_TOKEN = (os.getenv("TOKEN") or os.getenv("BOT_TOKEN") or "").strip()
+ADMIN_ID_RAW = (os.getenv("ADMIN_ID") or "").strip()
+MINI_APP_URL = (os.getenv("MINI_APP_URL") or "").strip()
+PAYMENT_DETAILS = (os.getenv("PAYMENT_DETAILS") or "").strip()
 
-# Mini App URL - ОБНОВИ НА СВОЙ URL!
-MINI_APP_URL = os.getenv('MINI_APP_URL', 'https://yourdomain.com/index.html')
+if not BOT_TOKEN or not ADMIN_ID_RAW:
+    print("Ошибка: Заполните .env файл по примеру .env.example")
+    sys.exit(1)
 
-# CDEK API ключи - ОБНОВЛЕНО!
-CDEK_CLIENT_ID = os.getenv('CDEK_CLIENT_ID', '4I5vLAbLUPdMIOEhVD0osn4fS0fvTttj')
-CDEK_CLIENT_SECRET = os.getenv('CDEK_CLIENT_SECRET', 'g1WXBI56G3ZAPrY0TleKblVIwsnMCm8J')
+try:
+    ADMIN_ID = int(ADMIN_ID_RAW)
+except ValueError:
+    print("Ошибка: Заполните .env файл по примеру .env.example")
+    sys.exit(1)
+
+ADMINS = [ADMIN_ID]
+
+# CDEK API ключи — только из окружения/.env (без хардкода старых значений)
+CDEK_CLIENT_ID = os.getenv('CDEK_CLIENT_ID', '')
+CDEK_CLIENT_SECRET = os.getenv('CDEK_CLIENT_SECRET', '')
 
 # ================================================
 # ⚠️ ИНИЦИАЛИЗАЦИЯ CDEK ПЕРЕМЕННЫХ И ПРОКСИ
@@ -170,14 +181,16 @@ async def cmd_start(message: types.Message):
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     
     # Кнопка для открытия Mini App
-    web_link = MINI_APP_URL
-    markup.add(KeyboardButton(
-        "🛍️ Открыть магазин", 
-        web_app=WebAppInfo(url=web_link)
-    ))
+    if MINI_APP_URL:
+        markup.add(
+            KeyboardButton(
+                "🛍️ Открыть магазин",
+                web_app=WebAppInfo(url=MINI_APP_URL),
+            )
+        )
     
     welcome_text = (
-        "🔥 <b>Добро пожаловать в mngnv shop!</b>\n\n"
+        "🔥 <b>Добро пожаловать в Telegram Shop Template!</b>\n\n"
         "Здесь ты можешь купить вещи или поговорить с менеджером.\n"
         "Нажми кнопку ниже, чтобы открыть каталог.\n\n"
         "❓ <b>Как это работает?</b>\n"
@@ -256,7 +269,7 @@ def format_customer_confirmation(order_data: Dict, chat_id: int) -> str:
         f"• Индекс: {index}\n"
         f"• TG: {tg_user}\n\n"
         f"📍 <b>Реквизиты для оплаты:</b>\n"
-        f"<code>2200 7020 9556 5789</code> (Т-Банк / Минганов И.А)\n\n"
+        f"{(f'<code>{PAYMENT_DETAILS}</code>' if PAYMENT_DETAILS else 'Реквизиты для оплаты уточните у менеджера.')}\n\n"
         f"🙏 Пожалуйста, пришли скриншот чека, ответив на это сообщение.\n"
         f"Как только получим платёж, подтвердим заказ!"
     )
@@ -291,7 +304,7 @@ def format_admin_notification(order_data: Dict, user: types.User) -> str:
 # FASTAPI - РАСЧЕТ ДОСТАВКИ
 # ================================================
 
-app = FastAPI(title="mngnv Bot API")
+app = FastAPI(title="Telegram Shop Template API")
 
 # ================================================
 # CORS - РАЗРЕШЕНИЕ ЗАПРОСОВ С ДРУГИХ ДОМЕНОВ
@@ -374,7 +387,8 @@ async def calculate_shipping_endpoint(request: Request) -> Dict:
         
         # Вызываем асинхронную функцию из cdek_integration
         print(f"🔄 Вызываю calculate_shipping('{city}')...")
-        cost, description = await calculate_shipping(city)
+        cost = await calculate_shipping(city)
+        description = "Стоимость доставки рассчитана"
         
         print(f"✅ ОТВЕТ ОТ СДЭК:")
         print(f"   Стоимость: {cost} ₽")
@@ -447,7 +461,7 @@ async def health_check():
 async def root():
     """Главная страница API"""
     return {
-        "name": "mngnv Bot API",
+        "name": "Telegram Shop Template API",
         "version": "1.0.0",
         "endpoints": {
             "health": "/api/health",
@@ -480,7 +494,7 @@ def main():
     """Главная точка входа"""
     
     print("\n" + "=" * 70)
-    print("🚀 ЗАПУСК mngnv SHOP BOT")
+    print("🚀 ЗАПУСК Telegram Shop Template")
     print("=" * 70)
     
     print("\n📋 КОНФИГУРАЦИЯ:")
@@ -503,7 +517,7 @@ def main():
     print("⏳ Запуск сервера...\n")
     
     logger.info("=" * 60)
-    logger.info("🚀 ЗАПУСК mngnv SHOP BOT")
+    logger.info("🚀 ЗАПУСК Telegram Shop Template")
     logger.info("=" * 60)
     logger.info(f"Bot Token: {BOT_TOKEN[:20]}...")
     logger.info(f"CDEK Client: {'✅' if CDEK_CLIENT_ID else '❌'} Установлен")

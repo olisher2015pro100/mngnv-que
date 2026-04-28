@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>mngnv_que</title>
+    <title>Telegram Shop Template</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link rel="stylesheet" href="style.css" />
@@ -184,26 +184,15 @@
 <body>
 
 <div class="app">
-    <header>mngnv</header>
+    <header>Telegram Shop Template</header>
 
     <!-- КАТАЛОГ -->
     <div id="catalog-page" class="page active">
-        <div class="catalog">
-            <div class="product-card" onclick="openProduct()">
-                <img src="https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode.jpg" alt="product">
-                <div class="card-info">
-                    <div class="card-title">zip-hoodie "snich"</div>
-                    <div class="card-price">8000₽</div>
-                </div>
-            </div>
-            <div class="product-card" onclick="openProduct('tshirt')">
-                <img src="tshirt1.jpg" alt="tshirt">
-                <div class="card-info">
-                    <div class="card-title">t-shirt "snich"</div>
-                    <div class="card-price">2900₽</div>
-                </div>
-            </div>
-        </div>
+        <!--
+            КАТАЛОГ СОБИРАЕТСЯ АВТОМАТИЧЕСКИ ИЗ PRODUCT_CATALOG В <script>.
+            Чтобы добавить новый товар, добавь 1 объект в PRODUCT_CATALOG.
+        -->
+        <div class="catalog" id="catalog-grid"></div>
     </div>
 
     <!-- КАРТОЧКА ТОВАРА -->
@@ -306,18 +295,24 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
     tg.expand();
     tg.headerColor = '#000000';
 
-    let selectedSize = "";
-    let currentProductKey = 'hoodie';
-    let currentShippingCost = 500;
-    let productSwiper = null;
-    let selectedCity = "";
-    let selectedPostalCode = "";
-    let selectedAddressFull = "";
+    /*
+      ==========================================================
+      НАСТРОЙКА ТОВАРОВ (ЕДИНСТВЕННОЕ МЕСТО ДЛЯ РЕДАКТИРОВАНИЯ)
+      ==========================================================
 
-    const products = {
+      Как добавить новый товар:
+      1) Скопируй любой блок товара ниже
+      2) Поменяй ключ (например, "cap"), title, price, cardImage, images, sizes
+      3) Готово: карточка в каталоге появится автоматически
+    */
+    const PRODUCT_CATALOG = {
+
+        
         hoodie: {
             title: 'zip-hoodie "snich"',
             price: 8000,
+            cardImage: "assets/placeholder.svg",
+            cardAlt: "zip hoodie",
             description: `new drop
 оверсайз крой
 ткань:футер 3-х нитка /кружево / кулирная гладь / сетка (кружево и кулирная гладь на заклепках, по желанию их можно снять)
@@ -326,16 +321,18 @@ big size (xl+) длина 70см спереди 80см сзади / ширина
 baby size (m-l) длина 65см спереди 75см сзади / ширина 65
 big size (xl+) длина 70см спереди 80см сзади / ширина 70`,
             images: [
-                "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode.jpg",
-                "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode1.jpg",
-                "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode2.jpg",
-                "https://raw.githubusercontent.com/olisher2015pro100/mngnv-que/main/zip-hoode3.jpg"
+                "assets/placeholder.svg",
+                "assets/placeholder.svg",
+                "assets/placeholder.svg",
+                "assets/placeholder.svg"
             ],
             sizes: ['baby-size','big-size']
         },
         tshirt: {
             title: 't-shirt "snich"',
             price: 2900,
+            cardImage: "tshirt1.jpg",
+            cardAlt: "t-shirt",
             description: `material: 94% хлопок, 6% лайкра
 black/white
 оверсайз крой + фулл машинная вышивка`,
@@ -345,8 +342,66 @@ black/white
                 "tshirt3.jpg"
             ],
             sizes: ['s-m(160+)','m-l(170+)','l-xl(180+)']
+        },
+
+
+        tshirt1: {
+            title: 'tshirt "Mohg"',
+            price: 2900,
+            cardImage: "картинка_для_карточки.jpg",
+            cardAlt: "alt-текст для картинки",
+            description: `material: 94% хлопок, 6% лайкра
+black/white`,
+            images: [
+                "фото1.jpg",
+                "фото2.jpg",
+                "фото3.jpg"
+            ],
+            sizes: ['s-m(160+)','m-l(170+)','l-xl(180+)']
         }
+        
+
+
+        /*
+        ================== ШАБЛОН НОВОГО ТОВАРА ==================
+        1) Скопируй блок ниже
+        2) Вставь НИЖЕ последнего товара
+        3) У прошлого товара добавь запятую после }
+        4) Замени поля на свои
+
+        new_key: {
+            title: 'название',
+            price: 9999,
+            cardImage: "картинка_для_карточки.jpg",
+            cardAlt: "alt-текст для картинки",
+            description: `описание товара`,
+            images: [
+                "фото1.jpg",
+                "фото2.jpg",
+                "фото3.jpg"
+            ],
+            sizes: ['s-m', 'm-l', 'l-xl']
+        }
+        ===========================================================
+        */
+        
     };
+
+    // Вспомогательный объект цен (если нужно использовать только цены отдельно)
+    const PRODUCT_PRICES = Object.fromEntries(
+        Object.entries(PRODUCT_CATALOG).map(([key, value]) => [key, value.price])
+    );
+
+    let selectedSize = "";
+    let currentProductKey = 'hoodie';
+    let currentShippingCost = 500;
+    let productSwiper = null;
+    let selectedCity = "";
+    let selectedPostalCode = "";
+    let selectedAddressFull = "";
+
+    // Основной источник данных товаров
+    const products = PRODUCT_CATALOG;
 
     // 🏙️ СПИСОК ПОПУЛЯРНЫХ ГОРОДОВ РФ
     const popularCities = [
@@ -360,6 +415,7 @@ black/white
 
     // 🌐 ЛОГИКА ИНИЦИАЛИЗАЦИИ
     document.addEventListener('DOMContentLoaded', function() {
+        renderCatalogCards();
         // Слушаем ввод телефона
         document.getElementById('phone').addEventListener('input', formatPhone);
         
@@ -410,6 +466,23 @@ black/white
             }
         });
     });
+
+    function renderCatalogCards() {
+        const grid = document.getElementById('catalog-grid');
+        if (!grid) return;
+
+        grid.innerHTML = Object.entries(PRODUCT_CATALOG)
+            .map(([key, product]) => `
+                <div class="product-card" data-product-key="${key}" onclick="openProduct('${key}')">
+                    <img src="${product.cardImage}" alt="${product.cardAlt || product.title}">
+                    <div class="card-info">
+                        <div class="card-title">${product.title}</div>
+                        <div class="card-price">${product.price}₽</div>
+                    </div>
+                </div>
+            `)
+            .join('');
+    }
 
     // 📝 ФОРМАТИРОВАНИЕ ТЕЛЕФОНА
     function formatPhone(e) {

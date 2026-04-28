@@ -45,7 +45,7 @@ cost, description = await calculate_shipping("Москва")
 
 ```bash
 # Разумно выведет:
-🚀 ЗАПУСК mngnv SHOP BOT
+🚀 ЗАПУСК Telegram Shop Template
 ✅ API запущена на http://127.0.0.1:8000
 🤖 Запускаю Telegram бота...
 ```
@@ -70,10 +70,10 @@ cost, description = await calculate_shipping("Москва")
 
 #### 4️⃣ **.env.example** / **.env**
 ```bash
-BOT_TOKEN=твой_токен_от_BotFather
-ADMINS=1018181608
-CDEK_CLIENT_ID=4I5vLAbLUPdMIOEhVD0osn4fS0fvTttj
-CDEK_CLIENT_SECRET=g1WXBI56G3ZAPrY0TleKblVIwsnMCm8J
+TOKEN=твой_токен_от_BotFather
+ADMIN_ID=твой_телеграм_id
+CDEK_CLIENT_ID=your_id_here
+CDEK_CLIENT_SECRET=your_secret_here
 MINI_APP_URL=https://yourdomain.com/index_updated.html
 ```
 

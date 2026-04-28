@@ -1,7 +1,7 @@
 #!/bin/bash
 # 🚀 Скрипт запуска для Linux/Mac
 
-echo "🛍️ mngnv Shop Bot - Скрипт запуска"
+echo "🛍️ Telegram Shop Template - Скрипт запуска"
 echo "===================================="
 echo ""
 
@@ -11,7 +11,7 @@ if [ ! -f .env ]; then
     echo "📝 Создаю .env из .env.example..."
     cp .env.example .env
     echo "✅ Файл .env создан. Отредактируй его и запусти скрипт снова:"
-    echo "   Открой .env и заполни:  CDEK_CLIENT_ID и CDEK_CLIENT_SECRET"
+    echo "   Открой .env и заполни: TOKEN и ADMIN_ID"
     exit 1
 fi
 

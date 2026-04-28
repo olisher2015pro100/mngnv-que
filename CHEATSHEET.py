@@ -16,7 +16,8 @@
     cp .env.example .env
     
     Заполни:
-    BOT_TOKEN=твой_токен_от_BotFather
+    TOKEN=твой_токен_от_BotFather
+    ADMIN_ID=твой_телеграм_id
     CDEK_CLIENT_ID=4I5vLAbLUPdMIOEhVD0osn4fS0fvTttj
     CDEK_CLIENT_SECRET=g1WXBI56G3ZAPrY0TleKblVIwsnMCm8J
 
@@ -199,7 +200,7 @@ GET /api/health
 
 GET /
     Информация об API
-    Response: {"name": "mngnv Bot API", "version": "1.0.0", ...}
+    Response: {"name": "Telegram Shop Template API", "version": "1.0.0", ...}
 """
 
 
@@ -318,7 +319,8 @@ document.getElementById('total').innerText = `${productPrice + shippingCost} ₽
 
 2. ✅ ИСПОЛЬЗУЙ ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ НА ПРОДАКШЕНЕ
    
-   export BOT_TOKEN="твой_токен"
+   export TOKEN="твой_токен"
+   export ADMIN_ID="твой_телеграм_id"
    export CDEK_CLIENT_ID="твой_id"
    export CDEK_CLIENT_SECRET="твой_secret"
    

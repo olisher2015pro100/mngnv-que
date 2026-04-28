@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>mngnv_que</title>
+    <title>Telegram Shop Template</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
     <link href="https://cdn.jsdelivr.net/npm/suggestions-jquery@21.12.0/dist/css/suggestions.min.css" rel="stylesheet" />
@@ -85,7 +85,7 @@
 </head>
 <body>
 
-    <header><div class="logo">mngnv_que</div></header>
+    <header><div class="logo">Telegram Shop Template</div></header>
 
     <div id="home" class="page active">
         <div class="catalog">

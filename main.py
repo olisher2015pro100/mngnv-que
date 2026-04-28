@@ -11,7 +11,7 @@ import logging
 import sqlite3
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command, StateFilter
+from aiogram.filters import Command, CommandObject, StateFilter
 from aiogram.types import (
     ReplyKeyboardMarkup,
     KeyboardButton,
@@ -19,12 +19,17 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
     CallbackQuery,
+    BotCommand,
 )
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.session.aiohttp import AiohttpSession
 from colorama import init, Fore, Style
+
+# ==== CONFIGURATION ====
+DELIVERY_PRICE = 500
+SHOP_NAME = "mngnv shop"
 
 # Эта строка "включает" поддержку цветов в Windows
 init(autoreset=True)
@@ -45,6 +50,7 @@ else:
 BOT_TOKEN = '8515886958:AAHoWf1mbESKzB03Vd6Aw3oGZrUY3SVb6dA'
 MINI_APP_URL = 'https://olisher2015pro100.github.io/mngnv-que/'
 ADMIN_ID = 1018181608
+MANAGER_TELEGRAM_URL = "tg://resolve?domain=mngnv"
 
 # ПУТЬ К БД
 DB_PATH = os.path.join(os.path.dirname(__file__), 'orders.db')
@@ -235,6 +241,41 @@ def get_all_orders(ascending: bool = True):
         conn.close()
 
 
+def get_orders_paginated(page: int, per_page: int = 5):
+    """Вернуть страницу заказов для админа (LIMIT/OFFSET)."""
+    if page < 1:
+        page = 1
+    offset = (page - 1) * per_page
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            _ORDER_SELECT + " ORDER BY id DESC LIMIT ? OFFSET ?",
+            (per_page, offset),
+        )
+        return cursor.fetchall()
+    except Exception as e:
+        logger.error(f"❌ Ошибка пагинации заказов: {e}")
+        return []
+    finally:
+        conn.close()
+
+
+def get_total_orders_count() -> int:
+    """Общее количество заказов в БД."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT COUNT(*) FROM orders")
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
+    except Exception as e:
+        logger.error(f"❌ Ошибка подсчета заказов: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
 def get_admin_base_list_orders(ascending: bool = True):
     """
     Список для /base без аргументов: все заказы, кроме завершённых
@@ -243,8 +284,10 @@ def get_admin_base_list_orders(ascending: bool = True):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     order = "ASC" if ascending else "DESC"
+    # В админской очереди показываем только "в работе".
+    # Поддерживаем и англ. статусы в БД, и русские (если где-то были записаны вручную).
     where = """
-    WHERE lower(coalesce(nullif(trim(status), ''), 'new')) NOT IN ('sent', 'cancelled')
+    WHERE lower(coalesce(nullif(trim(status), ''), 'new')) NOT IN ('sent', 'cancelled', 'отправлен', 'отменен', 'отменён')
     """
     try:
         cursor.execute(_ORDER_SELECT + where + f" ORDER BY id {order}")
@@ -412,7 +455,7 @@ def format_order_tree(
     status_line = order_status_tree_lines(status, tracking_number)
     tree = (
         f"<b>【 ЗАКАЗ #{order_id} 】</b>\n"
-        f"└ 📱 <b>Модель:</b> {item}\n"
+        f"└ 👕 <b>Товар:</b> {item}\n"
         f"└ 👤 <b>Клиент:</b> {fio}\n"
         f"└ 📧 <b>Почта:</b> {email}\n"
         f"└ 📞 <b>Тел:</b> {phone}\n"
@@ -420,7 +463,7 @@ def format_order_tree(
         f"└ 📮 <b>Индекс:</b> {postal_code}\n"
         f"└ 📍 <b>Город:</b> {city}\n"
         f"└ 📏 <b>Размер:</b> {size}\n"
-        f"└ 💵 <b>Товар:</b> {price}₽\n"
+        f"└ 💵 <b>Стоимость товара:</b> {price}₽\n"
         f"└ 🚚 <b>Доставка:</b> {shipping_cost}₽\n"
         f"└ 💰 <b>ИТОГО:</b> <code>{total}₽</code>\n"
         f"{status_line}"
@@ -473,6 +516,117 @@ async def send_long_html(message: types.Message, text: str):
         await message.answer(chunk[:max_len], parse_mode="HTML")
 
 
+def get_orders_text(page: int) -> tuple[str, InlineKeyboardMarkup | None]:
+    per_page = 8
+    # В общем списке админа показываем только активные (new/confirmed).
+    # Завершённые (sent/cancelled) не удаляем из БД — они остаются в истории клиента.
+    all_orders = get_admin_base_list_orders(ascending=True)
+    total_orders = len(all_orders)
+    if total_orders == 0:
+        return "📋 Заказы:\n\n📭 Заказов больше нет.", None
+
+    total_pages = max(1, (total_orders + per_page - 1) // per_page)
+
+    page = max(0, min(page, total_pages - 1))
+
+    # Если после изменения статуса текущая страница "опустела" — откатываемся назад.
+    while page > 0:
+        start_index = page * per_page
+        end_index = start_index + per_page
+        if all_orders[start_index:end_index]:
+            break
+        page -= 1
+
+    start_index = page * per_page
+    end_index = start_index + per_page
+    orders_slice = all_orders[start_index:end_index]
+
+    message_text = f"📋 Заказы (Страница {page + 1} из {total_pages}):\n\n"
+    if not orders_slice:
+        message_text += "📭 Заказов больше нет."
+    else:
+        separator = "_________________________"
+        for row in orders_slice:
+            (
+                oid,
+                fio,
+                email,
+                phone,
+                username,
+                address,
+                postal_code,
+                city,
+                item,
+                size,
+                price,
+                shipping_cost,
+                total,
+                _chat_id,
+                date,
+                status,
+                _vis,
+                _track,
+            ) = row
+            uname = (
+                str(username).replace("@", "").strip()
+                if username and str(username).strip() not in ("", "—")
+                else "—"
+            )
+            message_text += (
+                f"【 <b>ЗАКАЗ #{oid}</b> 】\n"
+                f"└ 👕 <b>Товар:</b> {item}\n"
+                f"└ 👤 <b>Клиент:</b> {fio}\n"
+                f"└ 📧 <b>Почта:</b> {email}\n"
+                f"└ 📞 <b>Тел:</b> {phone}\n"
+                f"└ 🔗 <b>Связь:</b> @{uname}\n"
+                f"└ 📮 <b>Индекс:</b> {postal_code}\n"
+                f"└ 📍 <b>Город:</b> {city}\n"
+                f"└ 📏 <b>Размер:</b> {size}\n"
+                f"└ 💵 <b>Стоимость товара:</b> {int(price or 0)}₽\n"
+                f"└ 🚚 <b>Доставка:</b> {int(shipping_cost or 0)}₽\n"
+                f"└ 💰 <b>ИТОГО:</b> <code>{int(total or 0)}₽</code>\n"
+                f"└ 📋 <b>Статус:</b> {status_label_ru(status)}\n"
+                f"└ 🕓 <b>Создано:</b> {date}\n"
+                f"{separator}\n\n"
+            )
+
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"page_view:{page - 1}"))
+    if page < total_pages - 1:
+        nav_buttons.append(InlineKeyboardButton(text="Вперед ➡️", callback_data=f"page_view:{page + 1}"))
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[nav_buttons]) if nav_buttons else None
+
+    return message_text.strip(), keyboard
+
+
+def _extract_page_from_admin_list(text: str | None) -> int:
+    """
+    Достаём текущую страницу из текста '📋 Заказы (Страница X из Y):'
+    Возвращаем 0-based page. Если не нашли — 0.
+    """
+    if not text:
+        return 0
+    try:
+        # пример: "📋 Заказы (Страница 2 из 6):"
+        if "Страница" not in text:
+            return 0
+        chunk = text.split("Страница", 1)[1]
+        x = chunk.strip().split()[0]
+        return max(0, int(x) - 1)
+    except Exception:
+        return 0
+
+
+async def _refresh_admin_queue_message(message: types.Message, preferred_page: int | None = None):
+    """
+    Обновить текущее сообщение админа на актуальную очередь (/base) без спама.
+    """
+    page = preferred_page if preferred_page is not None else _extract_page_from_admin_list(getattr(message, "text", None))
+    text, kb = get_orders_text(page)
+    await message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+
+
 # ==========================================
 # 4️⃣ КОМАНДЫ БОТА
 # ==========================================
@@ -484,15 +638,15 @@ async def cmd_start(message: types.Message):
         keyboard=[
             [KeyboardButton(text="🛍️ Каталог", web_app=WebAppInfo(url=MINI_APP_URL))],
             [KeyboardButton(text="👤 Личный кабинет")],
-            [KeyboardButton(text="🆘 Поддержка")],
+            [KeyboardButton(text="🆘 Поддержка / Менеджер")],
         ],
         resize_keyboard=True,
     )
     await message.answer(
-        "🔥 <b>Добро пожаловать в mngnv shop!</b>\n\n"
+        f"🔥 <b>{SHOP_NAME}</b>\n\n"
         "• <b>Каталог</b> — выбери товар и оформи заказ в Mini App\n"
         "• <b>Личный кабинет</b> — твои заказы и история\n"
-        "• <b>Поддержка</b> — связь с администратором",
+        "• <b>Поддержка / Менеджер</b> — связь с менеджером",
         parse_mode="HTML",
         reply_markup=markup,
     )
@@ -501,10 +655,26 @@ async def cmd_start(message: types.Message):
 @dp.message(F.text == "👤 Личный кабинет")
 async def cmd_cabinet(message: types.Message):
     """Список заказов пользователя (видимые), старые сверху — свежие внизу."""
+    if message.from_user.id == ADMIN_ID:
+        admin_markup = ReplyKeyboardMarkup(
+            keyboard=[
+                [KeyboardButton(text="🛍️ Каталог", web_app=WebAppInfo(url=MINI_APP_URL))],
+                [KeyboardButton(text="🆘 Поддержка / Менеджер")],
+            ],
+            resize_keyboard=True,
+        )
+        await message.answer(
+            "👤 <b>Личный кабинет администратора</b>\n"
+            "Для админки используй команду <b>/base</b>.",
+            parse_mode="HTML",
+            reply_markup=admin_markup,
+        )
+        return
+
     chat_id = str(message.from_user.id)
     orders = get_user_visible_orders(chat_id)
     if not orders:
-        await message.answer("📭 <b>История заказов пуста.</b>", parse_mode="HTML")
+        await message.answer("📭 <b>тут будут ваши заказы.</b>", parse_mode="HTML")
         return
 
     lines = [
@@ -562,14 +732,41 @@ async def cmd_cabinet(message: types.Message):
     await message.answer("Управление историей:", reply_markup=kb)
 
 
-@dp.message(F.text == "🆘 Поддержка")
-async def cmd_support(message: types.Message):
-    await message.answer(
-        "🆘 <b>Поддержка</b>\n\n"
-        f'<a href="tg://user?id=1018181608">Написать администратору</a>',
-        parse_mode="HTML",
-        disable_web_page_preview=True,
+@dp.message(F.text == "🆘 Поддержка / Менеджер")
+async def cmd_support_manager(message: types.Message):
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🆘 Написать менеджеру",
+                    url=MANAGER_TELEGRAM_URL,
+                )
+            ]
+        ]
     )
+    await message.answer("Поддержка / Менеджер:", reply_markup=kb)
+
+
+@dp.callback_query(F.data.startswith("page_view:"))
+async def admin_orders_page_callback(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("❌ Доступ запрещен!", show_alert=True)
+        return
+
+    try:
+        page = int((callback.data or "").split(":", 1)[1])
+    except (IndexError, ValueError):
+        await callback.answer("Некорректная страница", show_alert=True)
+        return
+
+    text, kb = get_orders_text(page=page)
+    try:
+        await callback.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
+    except Exception as e:
+        logger.error(f"❌ Ошибка пагинации page_view:{page}: {e}")
+        await callback.answer("Не удалось обновить страницу заказов", show_alert=True)
+        return
+    await callback.answer()
 
 
 @dp.callback_query(F.data == "cab_cl:ask")
@@ -585,7 +782,7 @@ async def cb_cabinet_clear_ask(query: CallbackQuery):
     )
     await query.message.answer(
         "🗑️ <b>Скрыть всю историю заказов в боте?</b>\n"
-        "(В админ-панели заказы останутся.)",
+        "(для админа заказы останутся, не волнуйся)",
         parse_mode="HTML",
         reply_markup=kb,
     )
@@ -624,87 +821,75 @@ async def cmd_help(message: types.Message):
         return
 
     help_text = (
-        "🤖 <b>ПАНЕЛЬ АДМИНИСТРАТОРА:</b>\n\n"
-        "📋 <b>Просмотр заказов:</b>\n"
-        "• <code>/base</code> — активные заказы (без <b>sent</b> и <b>cancelled</b>), "
-        "от старых к новым; завершённые смотри по <code>/base ID</code>\n"
-        "• <code>/base [ID]</code> — один заказ по номеру, например <code>/base 3</code>\n"
-        "  └ под чеком — кнопки по <b>статусу</b>:\n"
-        "     • <b>new</b> → [✅ Подтвердить] [❌ Отмена]\n"
-        "     • <b>confirmed</b> → [📦 Отправить] [❌ Отмена]\n"
-        "  └ [📦 Отправить]: бот попросит <b>трек-номер</b> сообщением — "
-        "он уйдёт клиенту, статус станет <b>sent</b>.\n\n"
-        "🗑️ <b>Управление:</b>\n"
+        "🤖 ПАНЕЛЬ АДМИНИСТРАТОРА:\n\n"
+        "📋 Просмотр заказов:\n"
+        "• /base — постраничный просмотр всех заказов (по 8 на страницу, с начала → в конец)\n"
+        "• Листание кнопками: ⬅️ Назад / Вперед ➡️\n"
+        "• /base [ID] — один заказ по номеру, например /base 3\n"
+        "└ под чеком — кнопки по статусу:\n"
+        "• new → [✅ Подтвердить] [❌ Отмена]\n"
+        "• confirmed → [📦 Отправить] [❌ Отмена]\n"
+        "└ [📦 Отправить]: бот попросит трек-номер сообщением — он уйдёт клиенту, статус станет sent.\n\n"
+        "🗑️ Управление:\n"
         "• /delete [номер] — удалить заказ из БД\n"
-        "• /baseclearall — полная очистка БД (счётчик ID → 1)\n\n"
+        "• /baseclearall — полная очистка БД (с подтверждением)\n"
+        "• /test [N] — создать N тестовых заказов (по умолчанию 1)\n\n"
         "ℹ️ /cmd — это меню"
     )
-    await message.answer(help_text, parse_mode="HTML")
+    await message.answer(help_text)
+
+
+@dp.message(Command("test"))
+async def cmd_test_orders(message: types.Message, command: CommandObject):
+    if message.from_user.id != ADMIN_ID:
+        await message.answer("❌ Доступ запрещен!")
+        return
+
+    count = 1
+    if command.args:
+        try:
+            count = int(command.args.strip())
+            if count < 1:
+                await message.answer("❌ Формат: /test [количество], количество должно быть > 0.")
+                return
+        except ValueError:
+            await message.answer("❌ Формат: /test [количество]\nПример: /test 5")
+            return
+
+    created = 0
+    for i in range(1, count + 1):
+        order_id = save_order(
+            fio=f"⚠️ ТЕСТОВЫЙ ЗАКАЗ TEST_USER_{i}",
+            email="test@example.com",
+            phone="+70000000000",
+            username="TEST_USER",
+            address=f"⚠️ ТЕСТОВЫЙ ЗАКАЗ TEST_ADDRESS_{i}",
+            postal_code="000000",
+            city="TEST_CITY",
+            item=f"⚠️ ТЕСТОВЫЙ ЗАКАЗ TEST_ITEM_{i}",
+            size="TEST_SIZE",
+            price=1000,
+            shipping_cost=DELIVERY_PRICE,
+            total=1000 + DELIVERY_PRICE,
+            chat_id=str(ADMIN_ID),
+        )
+        if order_id:
+            created += 1
+
+    await message.answer(f"✅ Создано тестовых заказов: {created}/{count}")
 
 
 @dp.message(Command("base"))
 async def cmd_base(message: types.Message):
-    """/base — активные заказы (без sent/cancelled), старые → новые; /base [ID] — любой заказ по ID."""
+    """/base — постраничный список заказов; /base [ID] — один заказ по ID."""
     if message.from_user.id != ADMIN_ID:
         await message.answer("❌ Доступ запрещен!")
         return
 
     args = message.text.split()
     if len(args) == 1:
-        orders = get_admin_base_list_orders(ascending=True)
-        if not orders:
-            await message.answer(
-                "📭 <b>Нет активных заказов</b> (new / confirmed).\n"
-                "Завершённые (sent, cancelled) в общем списке не показываются — "
-                "открой по ID: <code>/base 12</code>",
-                parse_mode="HTML",
-            )
-            return
-        text = (
-            f"📊 <b>Активные заказы ({len(orders)} шт.)</b> "
-            f"— без sent/cancelled, от старых к новым\n\n"
-        )
-        for order in orders:
-            (
-                order_id,
-                fio,
-                email,
-                phone,
-                username,
-                address,
-                postal_code,
-                city,
-                item,
-                size,
-                price,
-                shipping_cost,
-                total,
-                chat_id,
-                date,
-                status,
-                _vis,
-                track,
-            ) = order
-            tree = format_order_tree(
-                order_id,
-                fio,
-                email,
-                phone,
-                username,
-                address,
-                postal_code,
-                city,
-                item,
-                size,
-                price or 0,
-                shipping_cost or 0,
-                total,
-                date,
-                status=status,
-                tracking_number=track,
-            )
-            text += tree + "\n\n"
-        await send_long_html(message, text)
+        text, kb = get_orders_text(page=0)
+        await message.answer(text, parse_mode="HTML", reply_markup=kb)
         return
 
     try:
@@ -790,15 +975,42 @@ async def cmd_delete(message: types.Message):
 
 @dp.message(Command("baseclearall"))
 async def cmd_baseclearall(message: types.Message):
-    """Команда /baseclearall - ПОЛНАЯ очистка БД"""
+    """Команда /baseclearall - очистка БД с подтверждением."""
     if message.from_user.id != ADMIN_ID:
         await message.answer("❌ Доступ запрещен!")
         return
-    
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Да, удалить всё", callback_data="confirm_clear_all")],
+            [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_clear")],
+        ]
+    )
+    await message.answer(
+        "⚠️ Вы ТОЧНО уверены, что хотите удалить всю историю заказов? Вернуть её не получится.",
+        reply_markup=kb,
+    )
+
+
+@dp.callback_query(F.data == "confirm_clear_all")
+async def cb_confirm_clear_all(query: CallbackQuery):
+    if query.from_user.id != ADMIN_ID:
+        await query.answer("❌ Доступ запрещен!", show_alert=True)
+        return
     if clear_all_orders():
-        await message.answer("✅ БД полностью очищена!\nСчетчик ID сброшен на 1")
+        await query.message.edit_text("✅ БД полностью очищена!\nСчетчик ID сброшен на 1")
     else:
-        await message.answer("❌ Ошибка при очистке БД!")
+        await query.message.edit_text("❌ Ошибка при очистке БД!")
+    await query.answer()
+
+
+@dp.callback_query(F.data == "cancel_clear")
+async def cb_cancel_clear(query: CallbackQuery):
+    if query.from_user.id != ADMIN_ID:
+        await query.answer("❌ Доступ запрещен!", show_alert=True)
+        return
+    await query.message.delete()
+    await query.answer("Отменено")
 
 
 async def _notify_client_order(chat_id_str: str, text: str):
@@ -867,23 +1079,22 @@ async def cb_admin_confirm(query: CallbackQuery):
         await query.answer("Ошибка БД", show_alert=True)
         return
     chat_id = row[13]
-    await _notify_client_order(chat_id, f"✅ <b>Заказ #{order_id}</b> подтверждён.")
-    row2 = get_order_by_id(order_id)
-    body = _format_order_row_message(row2)
-    kb = build_admin_order_keyboard(order_id, row2[15])
+    await _notify_client_order(
+        chat_id,
+        (
+            f"✅ <b>Заказ #{order_id} подтверждён!</b>\n\n"
+            "Мы уже начали готовить твою посылку к отправке. 🚀\n\n"
+            "📦 <b>Сроки:</b> Изготовление/отправка обычно занимает от 7 до 10 дней.\n"
+            "🔔 <b>Что дальше:</b> Как только заказ будет передан в службу доставки, ты получишь уведомление "
+            "с трек-номером для отслеживания.\n\n"
+            "Спасибо, что выбрал нас! 🫶"
+        ),
+    )
+    # Динамически обновляем очередь: подтверждённый заказ исчезает из списка.
     try:
-        await query.message.edit_text(
-            f"📌 <b>Заказ по ID</b> <code>#{order_id}</code>\n\n{body}",
-            parse_mode="HTML",
-            reply_markup=kb,
-        )
+        await _refresh_admin_queue_message(query.message, preferred_page=0)
     except Exception as e:
-        logger.warning(f"⚠️ edit_text: {e}")
-        await query.message.answer(
-            f"📌 <b>Заказ #{order_id}</b> подтверждён.\n\n{body}",
-            parse_mode="HTML",
-            reply_markup=kb,
-        )
+        logger.warning(f"⚠️ refresh queue after confirm: {e}")
     await query.answer("Подтверждён")
     print(Fore.GREEN + f"✅ Админ подтвердил заказ #{order_id}" + Style.RESET_ALL)
 
@@ -907,22 +1118,11 @@ async def cb_admin_cancel(query: CallbackQuery):
         return
     chat_id = row[13]
     await _notify_client_order(chat_id, f"❌ <b>Заказ #{order_id}</b> отменён.")
-    row2 = get_order_by_id(order_id)
-    body = _format_order_row_message(row2)
-    kb = build_admin_order_keyboard(order_id, row2[15])
+    # Динамически обновляем очередь: отменённый заказ исчезает из списка.
     try:
-        await query.message.edit_text(
-            f"📌 <b>Заказ по ID</b> <code>#{order_id}</code>\n\n{body}",
-            parse_mode="HTML",
-            reply_markup=kb,
-        )
+        await _refresh_admin_queue_message(query.message, preferred_page=0)
     except Exception as e:
-        logger.warning(f"⚠️ edit_text: {e}")
-        await query.message.answer(
-            f"📌 <b>Заказ #{order_id}</b> отменён.\n\n{body}",
-            parse_mode="HTML",
-            reply_markup=kb,
-        )
+        logger.warning(f"⚠️ refresh queue after cancel: {e}")
     await query.answer("Отменён")
     print(Fore.YELLOW + f"❌ Админ отменил заказ #{order_id}" + Style.RESET_ALL)
 
@@ -941,7 +1141,11 @@ async def cb_admin_send_start(query: CallbackQuery, state: FSMContext):
         await query.answer("Сначала подтверди заказ", show_alert=True)
         return
     await state.set_state(AdminStates.waiting_track)
-    await state.update_data(order_id=order_id)
+    await state.update_data(
+        order_id=order_id,
+        origin_chat_id=query.message.chat.id,
+        origin_message_id=query.message.message_id,
+    )
     await query.answer()
     await query.message.answer(
         f"📦 Введи <b>трек-номер</b> для заказа <code>#{order_id}</code> одним сообщением.\n"
@@ -991,6 +1195,22 @@ async def admin_track_input(message: types.Message, state: FSMContext):
         f"🔖 <b>Трек:</b> <code>{safe_track}</code>",
     )
     await state.clear()
+    # Динамически обновляем очередь (заказ sent исчезает).
+    origin_chat_id = data.get("origin_chat_id")
+    origin_message_id = data.get("origin_message_id")
+    try:
+        if origin_chat_id and origin_message_id:
+            text, kb = get_orders_text(0)
+            await bot.edit_message_text(
+                chat_id=origin_chat_id,
+                message_id=origin_message_id,
+                text=text,
+                parse_mode="HTML",
+                reply_markup=kb,
+            )
+    except Exception as e:
+        logger.warning(f"⚠️ refresh queue after sent: {e}")
+
     await message.answer(
         f"✅ Трек отправлен клиенту. Заказ <code>#{order_id}</code> — статус <b>sent</b>.",
         parse_mode="HTML",
@@ -1013,7 +1233,13 @@ async def handle_screenshot(message: types.Message):
         caption = f"💰 Скриншот оплаты от @{username} (ID: {user_id})"
         await bot.send_photo(ADMIN_ID, photo.file_id, caption=caption, parse_mode="HTML")
         
-        await message.answer("✅ Скриншот получен! Менеджер проверит и свяжется с тобой.")
+        await message.answer(
+            "✅ <b>Скриншот успешно отправлен!</b>\n\n"
+            "Наш менеджер уже проверяет транзакцию. Как только всё подтвердится, тебе придет уведомление.\n\n"
+            "P.S. Если возникнут вопросы по оплате или данным доставки, менеджер свяжется с тобой лично. "
+            "Не переживай, мы на связи! 🤝",
+            parse_mode="HTML",
+        )
         logger.info(f"📸 Скриншот от @{username}")
         
     except Exception as e:
@@ -1057,7 +1283,7 @@ async def handle_order(message: types.Message):
         print(f"🏙️ Город заказа: '{city}'")
         
         # 🚚 РАССЧИТЫВАЕМ ДОСТАВКУ СДЭК
-        shipping_cost = 500  # Дефолт
+        shipping_cost = DELIVERY_PRICE  # Дефолт
         
         if city and city != "—":
             try:
@@ -1069,7 +1295,8 @@ async def handle_order(message: types.Message):
                 print(f"   🏙️  Город: '{city}'")
                 print(f"   📞 Вызов: calculate_shipping()")
                 
-                shipping_cost, ship_desc = await calculate_shipping(city)
+                shipping_cost = await calculate_shipping(city)
+                ship_desc = "Стоимость доставки рассчитана"
                 
                 print(f"   ✅ РЕЗУЛЬТАТ: {shipping_cost}₽")
                 print(f"   📝 Описание: {ship_desc}")
@@ -1077,8 +1304,8 @@ async def handle_order(message: types.Message):
                 
             except Exception as e:
                 logger.error(f"⚠️ ОШИБКА СДЭК: {e}")
-                print(f"⚠️ Ошибка при расчете, используем дефолт 500₽\n")
-                shipping_cost = 500
+                print(f"⚠️ Ошибка при расчете, используем дефолт {DELIVERY_PRICE}₽\n")
+                shipping_cost = DELIVERY_PRICE
         
         total = price + shipping_cost
         
@@ -1095,24 +1322,25 @@ async def handle_order(message: types.Message):
         
         # ЧЕК ДЛЯ КЛИЕНТА в формате "дерева"
         receipt = (
-            f"✅ <b>Заказ принят!</b>\n\n"
+            f"✅ <b>Заказ создан!</b>\n\n"
             f"<b>【 ЗАКАЗ #{order_id} 】</b>\n"
-            f"└ 📱 <b>Модель:</b> {item}\n"
+            f"└ 👕 <b>Товар:</b> {item}\n"
             f"└ 📏 <b>Размер:</b> {size}\n"
-            f"└ 💵 <b>Товар:</b> {price}₽\n"
+            f"└ 💵 <b>Стоимость товара:</b> {price}₽\n"
             f"└ 🚚 <b>Доставка:</b> {shipping_cost}₽\n"
             f"└ 💰 <b>ИТОГО:</b> <code>{total}₽</code>\n"
             f"═══════════════════════════════\n\n"
-            f"👤 <b>Твои данные:</b>\n"
-            f"• ФИО: {fio}\n"
-            f"• Почта: {email}\n"
-            f"• Тел: {phone}\n"
-            f"• Адрес: {address}\n"
-            f"• Индекс: {postal_code}\n"
-            f"• Город: {city}\n\n"
+            f"👤 <b>Твои данные (проверь, всё ли верно?):</b>\n"
+            f"🙋‍♂️ <b>ФИО:</b> {fio}\n"
+            f"📧 <b>Почта:</b> {email}\n"
+            f"📞 <b>Тел:</b> {phone}\n"
+            f"🔗 <b>Твой профиль:</b> @{username}\n"
+            f"🏠 <b>Адрес:</b> {address}\n"
+            f"📮 <b>Индекс:</b> {postal_code}\n"
+            f"📍 <b>Город:</b> {city}\n\n"
             f"💳 <b>Оплата:</b>\n"
             f"<code>2204 3211 2754 4542</code>\n"
-            f"Сбербанк (Ozon)\n\n"
+            f"(Ozon-bank)\n\n"
             f"🙏 <b>Отправь скриншот чека!</b>"
         )
         await message.answer(receipt, parse_mode="HTML")
@@ -1159,6 +1387,12 @@ async def handle_order(message: types.Message):
 
 async def main():
     init_db()
+    await bot.set_my_commands(
+        [
+            BotCommand(command="start", description="Запуск бота"),
+            BotCommand(command="cmd", description="Справка администратора"),
+        ]
+    )
     
     print(Fore.BLUE + "█" * 60)
     print(Fore.BLUE + "█" + Fore.YELLOW + "      M N G N V   S H O P   V 1.0     ".center(58) + Fore.BLUE + "█")

@@ -3,7 +3,7 @@ REM 🚀 Скрипт запуска для Windows
 @echo off
 chcp 65001 > nul
 echo.
-echo 🛍️ mngnv Shop Bot - Скрипт запуска для Windows
+echo 🛍️ Telegram Shop Template - Скрипт запуска для Windows
 echo =============================================
 echo.
 
@@ -15,7 +15,7 @@ if not exist .env (
     echo.
     echo ✅ Файл .env создан.
     echo Отредактируй его и запусти скрипт снова:
-    echo    Открой .env и заполни: CDEK_CLIENT_ID и CDEK_CLIENT_SECRET
+    echo    Открой .env и заполни: TOKEN и ADMIN_ID
     echo.
     pause
     exit /b 1

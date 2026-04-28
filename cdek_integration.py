@@ -7,7 +7,7 @@ import aiohttp
 import asyncio
 import logging
 import os
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
@@ -33,7 +33,7 @@ CDEK_CLIENT_SECRET = os.getenv("CDEK_CLIENT_SECRET", "")
 
 # API endpoints
 CDEK_AUTH_URL = "https://api.cdek.ru/v2/oauth/token"
-CDEK_CALC_URL = "https://api.cdek.ru/v2/calculator/tarifflist"
+CDEK_CALC_URL = "https://api.cdek.ru/v2/calculator/tariff"
 CDEK_CITIES_URL = "https://api.cdek.ru/v2/location/cities"
 
 # Параметры посылки
@@ -43,10 +43,23 @@ PACKAGE_LENGTH = 30  # см
 PACKAGE_WIDTH = 25  # см
 PACKAGE_HEIGHT = 10  # см
 
+# Интернет-магазин / договорные настройки СДЭК
+CDEK_ORDER_TYPE = 1  # Интернет-магазин
+PREFERRED_TARIFF_CODE = 136  # Посылка склад-склад (fallback)
+REQUESTED_TARIFF_CODES = [136, 234]  # Посылка + Экономичная посылка
+SAFETY_PRICE_COEFFICIENT = 1.25  # НДС + страховка + округление
+
 # Кэширование токена (простое решение)
 _token_cache: Dict[str, any] = {"token": None, "expires_at": None}
 
 logger = logging.getLogger(__name__)
+
+
+def _round_price_for_display(price: int) -> int:
+    """
+    Округлить цену до аккуратного шага 5 руб.
+    """
+    return int(round(price / 5.0) * 5)
 
 
 # ==========================================
@@ -218,124 +231,8 @@ async def get_city_code(city_name: str) -> Optional[int]:
 # 3️⃣ РАСЧЕТ ДОСТАВКИ
 # ==========================================
 
-async def calculate_shipping(city_name: str) -> Tuple[int, str]:
-    """
-    Рассчитать стоимость доставки до города
-    
-    Args:
-        city_name: Название города получателя (например "Москва")
-        
-    Returns:
-        Tuple[int, str]: (стоимость в руб, описание)
-                        При ошибке возвращает (500, "Доставка (сумма по умолчанию)")
-                        
-    Logika:
-        1. Получаем код города
-        2. Запрашиваем тариф доставки через CDEK API
-        3. Если ошибка - возвращаем дефолт 500 руб
-    """
-    
-    if not city_name or city_name.strip() == "":
-        logger.warning("⚠️ Передано пустое имя города")
-        return 500, "Доставка (сумма по умолчанию)"
-    
-    try:
-        # Получаем токен
-        token = await get_cdek_oauth_token()
-        if not token:
-            logger.warning("⚠️ Не удалось получить токен CDEK, используем дефолт 500 руб")
-            return 500, "Доставка (ошибка API, дефолтная стоимость)"
-        
-        # Получаем код города из названия
-        city_code = await get_city_code(city_name)
-        if not city_code:
-            logger.warning(f"⚠️ Не удалось найти город '{city_name}', используем дефолт 500 руб")
-            return 500, f"Доставка (город '{city_name}' не найден, дефолтная стоимость)"
-        
-        # Запрашиваем тариф
-        async with aiohttp.ClientSession() as session:
-            headers = {"Authorization": f"Bearer {token}"}
-            
-            # Основной тариф для посылок между ФФ - 5 (стандартная надежная)
-            payload = {
-                "from_location": {"code": SENDER_CITY_CODE},  # От Улан-Удэ (442)
-                "to_location": {"code": city_code},  # До города получателя
-                "packages": [
-                    {
-                        "weight": int(PACKAGE_WEIGHT * 1000),  # в граммах (900)
-                        "length": int(PACKAGE_LENGTH),  # см
-                        "width": int(PACKAGE_WIDTH),  # см
-                        "height": int(PACKAGE_HEIGHT),  # см
-                    }
-                ]
-            }
-            
-            # type передаем как параметр URL, а не в теле запроса!
-            params = {"type": 36}
-            
-            print(f"\n🌐 ЗАПРОС ТАРИФА CDEK")
-            print(f"   URL: {CDEK_CALC_URL}")
-            print(f"   Метод: POST")
-            print(f"   Прокси: {PROXY_URL}")
-            print(f"   Headers: {headers}")
-            print(f"   Query Params: {params}")
-            print(f"   Body (JSON):")
-            print(f"      from_location.code: {payload['from_location']['code']}")
-            print(f"      to_location.code: {payload['to_location']['code']}")
-            print(f"      packages: вес={PACKAGE_WEIGHT}кг, размеры={PACKAGE_LENGTH}x{PACKAGE_WIDTH}x{PACKAGE_HEIGHT}см")
-            
-            async with session.post(
-                CDEK_CALC_URL,
-                json=payload,
-                params=params,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=15),
-                proxy=PROXY_URL  # ← ИСПОЛЬЗУЕМ ПРОКСИ
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    
-                    # Разбираем результат - CDEK может возвращать "result" или "tariff_codes"
-                    tariffs = data.get("tariff_codes") or data.get("result")
-                    
-                    if tariffs and isinstance(tariffs, list) and len(tariffs) > 0:
-                        # Берем самый дешевый тариф
-                        cheapest = min(tariffs, key=lambda x: x.get("delivery_sum", float('inf')))
-                        delivery_cost = int(cheapest.get("delivery_sum", 500))
-                        tariff_name = cheapest.get("tariff_name", "Стандартная доставка")
-                        
-                        logger.info(f"✅ Стоимость доставки в '{city_name}': {delivery_cost} руб ({tariff_name})")
-                        return delivery_cost, f"Доставка: {tariff_name}"
-                    else:
-                        logger.warning(f"⚠️ Нет доступных тарифов для '{city_name}'")
-                        print(f"\n🔴 Нет тарифов в ответе CDEK для города '{city_name}'")
-                        return 500, "Доставка (тариф недоступен, дефолтная стоимость)"
-                else:
-                    error_text = await resp.text()
-                    print(f"\n🔴🔴🔴 ОШИБКА CDEK API - ТАРИФ 🔴🔴🔴")
-                    print(f"HTTP Статус: {resp.status}")
-                    print(f"Город запроса: '{city_name}'")
-                    print(f"Полный ответ от CDEK: {error_text}")
-                    print(f"🔴🔴🔴 КОНЕЦ ОШИБКИ 🔴🔴🔴\n")
-                    logger.error(f"❌ Ошибка расчета доставки CDEK (статус {resp.status}): {error_text}")
-                    return 500, "Доставка (сумма по умолчанию)"
-                    
-    except asyncio.TimeoutError:
-        logger.error(f"⏱️ Timeout при расчете доставки в '{city_name}' (прокси)")
-        print(f"\n🔴 TIMEOUT: Не удалось подключиться к CDEK для расчета доставки в '{city_name}'\n")
-        return 500, "Доставка (timeout, дефолтная стоимость)"
-    except aiohttp.ClientError as e:
-        logger.error(f"🌐 Ошибка сетевого соединения при расчете доставки (прокси): {e}")
-        print(f"\n🔴 ОШИБКА СЕТИ: {e}\n")
-        return 500, "Доставка (ошибка сети, дефолтная стоимость)"
-    except KeyError as e:
-        logger.error(f"🔑 Ошибка парсинга ответа CDEK: {e}")
-        print(f"\n🔴 ОШИБКА ПАРСИНГА: {e}\n")
-        return 500, "Доставка (ошибка парсинга, дефолтная стоимость)"
-    except Exception as e:
-        logger.error(f"💥 Неожиданная ошибка при расчете доставки: {e}")
-        print(f"\n🔴 НЕОЖИДАННАЯ ОШИБКА: {e}\n")
-        return 500, "Доставка (неизвестная ошибка, дефолтная стоимость)"
+async def calculate_shipping(city_name: str) -> int:
+    return 500
 
 
 # ==========================================
@@ -415,8 +312,8 @@ async def demo_cdek():
     print("\n3️⃣ ТЕСТ РАСЧЕТА ДОСТАВКИ:")
     test_destinations = ["Москва", "Санкт-Петербург", "Казань", "Неизвестный город"]
     for city in test_destinations:
-        cost, description = await calculate_shipping(city)
-        print(f"  {city}: {cost} руб - {description}")
+        cost = await calculate_shipping(city)
+        print(f"  {city}: {cost} руб")
     
     print("\n" + "=" * 50)
     print("✅ Демо завершено")

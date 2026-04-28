@@ -336,8 +336,8 @@ python cdek_integration.py  # Тест CDEK
 python bot_with_cdek.py    # Запуск бота
 
 # На продакшене
-systemctl start mngnv-bot   # Systemd
-docker run mngnv-bot        # Docker
+systemctl start telegram-shop-template   # Systemd
+docker run telegram-shop-template        # Docker
 
 # Debug
 tail -f bot.log            # Смотреть логи

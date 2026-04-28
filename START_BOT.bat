@@ -1,5 +1,5 @@
 @echo off
-title MNGNV SHOP BOT
+title Telegram Shop Template
 echo 🚀 Запускаю твой сервер...
 
 :: Переходим в папку с ботом
